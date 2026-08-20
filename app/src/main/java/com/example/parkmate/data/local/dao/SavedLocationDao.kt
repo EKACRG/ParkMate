@@ -7,7 +7,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
 
-import com.example.parkmate.data.local.entity.SavedLocation;
+import com.example.parkmate.data.local.entity.SavedLocation
 
 @Dao
 interface SavedLocationDao {
