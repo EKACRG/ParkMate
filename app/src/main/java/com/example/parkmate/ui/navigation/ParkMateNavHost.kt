@@ -1,13 +1,20 @@
 package com.example.parkmate.ui.navigation
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -19,11 +26,11 @@ import com.example.parkmate.ui.map.MapScreen
 import com.example.parkmate.ui.stats.StatsScreen
 import com.example.parkmate.ui.vehicles.VehiclesScreen
 
-sealed class ParkMateDestination(val route: String, val label: String) {
-    object Map : ParkMateDestination("map", "Mappa")
-    object Vehicles : ParkMateDestination("vehicles", "Veicoli")
-    object History : ParkMateDestination("history", "Storico")
-    object Stats : ParkMateDestination("stats", "Statistiche")
+sealed class ParkMateDestination(val route: String, val label: String, val icon: ImageVector) {
+    object Map : ParkMateDestination("map", "Mappa", Icons.Default.Map)
+    object Vehicles : ParkMateDestination("vehicles", "Veicoli", Icons.Default.DirectionsCar)
+    object History : ParkMateDestination("history", "Storico", Icons.Default.History)
+    object Stats : ParkMateDestination("stats", "Statistiche", Icons.Default.BarChart)
 }
 
 private val bottomBarDestinations = listOf(
@@ -48,14 +55,19 @@ fun ParkMateNavHost(viewModelFactory: ParkMateViewModelFactory) {
                         selected = currentRoute == destination.route,
                         onClick = {
                             navController.navigate(destination.route) {
-                                popUpTo(navController.graph.findStartDestination().id) { // per evitare un lungo percorso per tornare indietro
+                                popUpTo(navController.graph.findStartDestination().id) { // svuota il back stack fino alla destinazione iniziale, così non si accumulano schermate a ogni tocco della barra
                                     saveState = true
                                 }
                                 launchSingleTop = true
                                 restoreState = true
                             }
                         },
-                        icon = {},
+                        icon = {
+                            Icon(
+                                imageVector = destination.icon,
+                                contentDescription = destination.label
+                            )
+                        },
                         label = { Text(destination.label) }
                     )
                 }
