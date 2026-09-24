@@ -11,7 +11,7 @@ import com.example.parkmate.data.local.entity.Vehicle
 
 @Database(
     entities = [Vehicle::class, SavedLocation::class, ParkingSession::class],
-    version = 1,
+    version = 2,
     exportSchema = true
 )
 abstract class ParkMateDatabase : RoomDatabase() {
