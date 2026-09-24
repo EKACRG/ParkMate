@@ -42,6 +42,9 @@ import com.example.parkmate.ParkMateViewModelFactory
 import com.example.parkmate.data.local.entity.Vehicle
 import com.example.parkmate.data.local.entity.VehicleType
 
+private const val MIN_LICENSE_PLATE_LENGTH = 1
+private const val MAX_LICENSE_PLATE_LENGTH = 14
+
 @Composable
 fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
     val viewModel: VehiclesViewModel = viewModel(factory = viewModelFactory) // istanza del ViewModel
@@ -197,7 +200,7 @@ private fun VehicleFormDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     OutlinedTextField(
                         value = licensePlate,
-                        onValueChange = { licensePlate = it.uppercase() },
+                        onValueChange = { licensePlate = it.uppercase().take(MAX_LICENSE_PLATE_LENGTH) },
                         label = { Text("Targa") },
                         singleLine = true
                     )
@@ -225,4 +228,4 @@ private fun VehicleType.displayLabel(): String = when (this) {
 }
 
 private fun isValidLicensePlate(lPlate: String): Boolean =
-    lPlate.length in 1..14 && lPlate.all { it.isDigit() || it in 'A'..'Z' }
+    lPlate.length in MIN_LICENSE_PLATE_LENGTH..MAX_LICENSE_PLATE_LENGTH && lPlate.all { it.isDigit() || it in 'A'..'Z' }
