@@ -4,27 +4,27 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.parkmate.data.local.entity.SavedLocation
-import com.example.parkmate.data.repository.LocationRepository
+import com.example.parkmate.data.repository.SavedLocationRepository
 import kotlinx.coroutines.launch
 
-class SavedLocationsViewModel(private val locationRepository: LocationRepository): ViewModel() {
-    val savedLocations: LiveData<List<SavedLocation>> = locationRepository.savedLocations
+class SavedLocationsViewModel(private val savedLocationRepository: SavedLocationRepository): ViewModel() {
+    val savedLocations: LiveData<List<SavedLocation>> = savedLocationRepository.savedLocations
 
     fun addSavedLocation(location: SavedLocation) {
         viewModelScope.launch {
-            locationRepository.addLocation(location)
+            savedLocationRepository.addLocation(location)
         }
     }
 
     fun updateSavedLocation(location: SavedLocation) {
         viewModelScope.launch {
-            locationRepository.updateLocation(location)
+            savedLocationRepository.updateLocation(location)
         }
     }
 
     fun deleteSavedLocation(location: SavedLocation) {
         viewModelScope.launch {
-            locationRepository.deleteLocation(location)
+            savedLocationRepository.deleteLocation(location)
         }
     }
 }

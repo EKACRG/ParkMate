@@ -3,7 +3,7 @@ package com.example.parkmate
 import android.app.Application
 import androidx.room.Room
 import com.example.parkmate.data.local.ParkMateDatabase
-import com.example.parkmate.data.repository.LocationRepository
+import com.example.parkmate.data.repository.SavedLocationRepository
 import com.example.parkmate.data.repository.VehicleRepository
 
 class ParkMateApplication : Application() {
@@ -18,7 +18,7 @@ class ParkMateApplication : Application() {
         VehicleRepository(database.vehicleDao())
     }
 
-    val locationRepository: LocationRepository by lazy {
-        LocationRepository(database.savedLocationDao())
+    val savedLocationRepository: SavedLocationRepository by lazy {
+        SavedLocationRepository(database.savedLocationDao())
     }
 }
