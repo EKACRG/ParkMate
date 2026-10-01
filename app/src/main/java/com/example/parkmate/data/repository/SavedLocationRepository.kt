@@ -6,7 +6,7 @@ import com.example.parkmate.data.local.entity.SavedLocation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class LocationRepository(private val savedLocationDao: SavedLocationDao) {
+class SavedLocationRepository(private val savedLocationDao: SavedLocationDao) {
 
     val savedLocations: LiveData<List<SavedLocation>> = savedLocationDao.getAll()
 
