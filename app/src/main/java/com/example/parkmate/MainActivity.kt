@@ -12,8 +12,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val parkMateApplication = application as ParkMateApplication
         val viewModelFactory = ParkMateViewModelFactory(
-            (application as ParkMateApplication).vehicleRepository
+            parkMateApplication.vehicleRepository,
+            parkMateApplication.savedLocationRepository
         )
 
         setContent {
