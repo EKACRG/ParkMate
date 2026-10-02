@@ -15,7 +15,7 @@ class ParkMateApplication : Application() {
             .build()
     }
 
-    private val parkingSessionRepository: ParkingSessionRepository by lazy {
+    val parkingSessionRepository: ParkingSessionRepository by lazy {
         ParkingSessionRepository(database.parkingSessionDao(), database)
     }
 
