@@ -68,6 +68,25 @@ class ParkingSessionRepository(
         }
     }
 
+    // chiamato da VehicleRepository quando un veicolo viene archiviato: se ha una sessione
+    // attiva va chiusa, non lasciata orfana di un veicolo sparito dalla gestione
+    suspend fun endActiveSessionForVehicle(vehicleId: Long) = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            val session = parkingSessionDao.getActiveSessionForVehicle(vehicleId)
+            if (session != null) {
+                parkingSessionDao.update(closeSession(session, endTime = System.currentTimeMillis()))
+            }
+        }
+    }
+
+    // chiamato da SavedLocationRepository quando cambiano le coordinate di una saved location:
+    // le sessioni collegate perdono il riferimento, non la posizione già copiata
+    suspend fun detachFromSavedLocation(savedLocationId: Long) = withContext(Dispatchers.IO) {
+        database.withTransaction {
+            parkingSessionDao.clearSavedLocationReference(savedLocationId)
+        }
+    }
+
     private fun closeSession(session: ParkingSession, endTime: Long): ParkingSession {
         val finalCost = when (session.type) {
             ParkType.FREE -> null
