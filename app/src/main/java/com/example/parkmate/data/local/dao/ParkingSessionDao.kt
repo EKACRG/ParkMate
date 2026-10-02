@@ -19,4 +19,7 @@ interface ParkingSessionDao {
 
     @Query("SELECT * FROM parking_session WHERE id = :id")
     suspend fun getById(id: Long): ParkingSession?
+
+    @Query("UPDATE parking_session SET savedLocationId = NULL WHERE savedLocationId = :savedLocationId")
+    suspend fun clearSavedLocationReference(savedLocationId: Long)
 }
