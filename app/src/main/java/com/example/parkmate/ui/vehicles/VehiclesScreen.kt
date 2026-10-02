@@ -35,12 +35,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.parkmate.ParkMateViewModelFactory
 import com.example.parkmate.data.local.entity.Vehicle
 import com.example.parkmate.data.local.entity.VehicleType
+import com.example.parkmate.ui.components.ConfirmDialog
+import com.example.parkmate.ui.components.EmptyState
 
 private const val MIN_LICENSE_PLATE_LENGTH = 1
 private const val MAX_LICENSE_PLATE_LENGTH = 14
@@ -57,13 +58,7 @@ fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (vehicles.isEmpty()) {
-            Text(
-                text = "Nessun veicolo. Tocca + per aggiungerne uno",
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(32.dp),
-                textAlign = TextAlign.Center
-            )
+            EmptyState("Nessun veicolo. Tocca + per aggiungerne uno")
         }
         else {
             LazyColumn(
@@ -116,20 +111,16 @@ fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
     }
 
     vehicleToArchive?.let { vehicle ->
-        AlertDialog(
-            onDismissRequest = { vehicleToArchive = null },
-            title = { Text("Archiviare veicolo?") },
-            text = {
-                Text("\"${vehicle.name}\" sparirà dalla gestione veicoli, ma resterà visibile nello storico.")
+        ConfirmDialog(
+            title= "Archiviare veicolo?",
+            text = "\"${vehicle.name}\" sparirà dalla gestione veicoli, ma resterà visibile nello storico.",
+            confirmLabel = "Archivia",
+            onConfirm = {
+                viewModel.archiveVehicle(vehicle)
+                vehicleToArchive = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.archiveVehicle(vehicle)
-                    vehicleToArchive = null
-                }) { Text("Archivia") }
-            },
-            dismissButton = {
-                TextButton(onClick = { vehicleToArchive = null }) { Text("Annulla") }
+            onDismiss = {
+                vehicleToArchive = null
             }
         )
     }
