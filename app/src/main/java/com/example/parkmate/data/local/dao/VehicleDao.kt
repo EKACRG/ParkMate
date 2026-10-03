@@ -16,9 +16,6 @@ interface VehicleDao {
     @Update
     suspend fun update(vehicle: Vehicle)
 
-    @Query("SELECT * FROM vehicle WHERE isArchived = 0 ORDER BY name")
-    fun getActiveVehicles(): LiveData<List<Vehicle>>
-
     @Query(
         """
         SELECT vehicle.*,
