@@ -1,5 +1,6 @@
 package com.example.parkmate.data.repository
 
+import androidx.lifecycle.LiveData
 import androidx.room.withTransaction
 import com.example.parkmate.data.local.ParkMateDatabase
 import com.example.parkmate.data.local.dao.ParkingSessionDao
@@ -12,6 +13,8 @@ class ParkingSessionRepository(
     private val parkingSessionDao: ParkingSessionDao,
     private val database: ParkMateDatabase
 ) {
+    val activeSessions: LiveData<List<ParkingSession>> = parkingSessionDao.getActiveSessions()
+
     suspend fun startSession(
         vehicleId: Long,
         type: ParkType,

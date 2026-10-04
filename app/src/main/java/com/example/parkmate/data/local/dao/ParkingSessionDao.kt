@@ -1,5 +1,6 @@
 package com.example.parkmate.data.local.dao
 
+import androidx.lifecycle.LiveData
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
@@ -13,6 +14,9 @@ interface ParkingSessionDao {
 
     @Update
     suspend fun update(session: ParkingSession)
+
+    @Query("SELECT * FROM parking_session WHERE endTime IS NULL")
+    fun getActiveSessions(): LiveData<List<ParkingSession>>
 
     @Query("SELECT * FROM parking_session WHERE vehicleId = :vehicleId AND endTime IS NULL LIMIT 1")
     suspend fun getActiveSessionForVehicle(vehicleId: Long): ParkingSession?
