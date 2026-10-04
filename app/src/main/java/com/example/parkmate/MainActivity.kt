@@ -15,7 +15,8 @@ class MainActivity : ComponentActivity() {
         val parkMateApplication = application as ParkMateApplication
         val viewModelFactory = ParkMateViewModelFactory(
             parkMateApplication.vehicleRepository,
-            parkMateApplication.savedLocationRepository
+            parkMateApplication.savedLocationRepository,
+            parkMateApplication.parkingSessionRepository
         )
 
         setContent {
