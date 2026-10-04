@@ -157,7 +157,9 @@ fun ParkMateNavHost(viewModelFactory: ParkMateViewModelFactory) {
             startDestination = ParkMateDestination.TopLevel.Vehicles.route,
             modifier = Modifier.padding(innerPadding)
         ) { // quale ui mostrare quando si naviga una certa route
-            composable(ParkMateDestination.TopLevel.Map.route) { MapScreen() }
+            composable(ParkMateDestination.TopLevel.Map.route) {
+                MapScreen(viewModelFactory = viewModelFactory)
+            }
             composable(ParkMateDestination.TopLevel.Vehicles.route) {
                 VehiclesScreen(viewModelFactory = viewModelFactory)
             }
