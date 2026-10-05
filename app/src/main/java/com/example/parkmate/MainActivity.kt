@@ -21,7 +21,10 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ParkMateTheme {
-                ParkMateNavHost(viewModelFactory = viewModelFactory)
+                ParkMateNavHost(
+                    viewModelFactory = viewModelFactory,
+                    deviceLocationProvider = parkMateApplication.deviceLocationProvider
+                )
             }
         }
     }

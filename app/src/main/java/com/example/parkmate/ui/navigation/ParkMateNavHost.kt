@@ -34,6 +34,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.parkmate.ParkMateViewModelFactory
+import com.example.parkmate.data.location.DeviceLocationProvider
 import com.example.parkmate.ui.history.HistoryScreen
 import com.example.parkmate.ui.map.MapScreen
 import com.example.parkmate.ui.map.SavedLocationsScreen
@@ -98,7 +99,10 @@ private fun topBarConfig(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ParkMateNavHost(viewModelFactory: ParkMateViewModelFactory) {
+fun ParkMateNavHost(
+    viewModelFactory: ParkMateViewModelFactory,
+    deviceLocationProvider: DeviceLocationProvider
+) {
     // crea il controller di navigazione
     val navController = rememberNavController()
     // dove ci troviamo nell'app
@@ -167,7 +171,11 @@ fun ParkMateNavHost(viewModelFactory: ParkMateViewModelFactory) {
             modifier = Modifier.padding(innerPadding)
         ) { // quale ui mostrare quando si naviga una certa route
             composable(ParkMateDestination.TopLevel.Map.route) {
-                MapScreen(viewModelFactory = viewModelFactory, showSavedLocations = showSavedLocations)
+                MapScreen(
+                    viewModelFactory = viewModelFactory,
+                    deviceLocationProvider = deviceLocationProvider,
+                    showSavedLocations = showSavedLocations
+                )
             }
             composable(ParkMateDestination.TopLevel.Vehicles.route) {
                 VehiclesScreen(viewModelFactory = viewModelFactory)
