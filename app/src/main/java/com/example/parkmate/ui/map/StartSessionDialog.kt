@@ -96,6 +96,12 @@ private fun ParkType.shortLabel(): String = when (this) {
     ParkType.FIXED_TICKET -> "Ticket"
 }
 
+// voci del primo menu della posizione: il GPS, oppure "Saved Locations" che apre il secondo menu
+private sealed interface PositionChoice {
+    data object Gps : PositionChoice
+    data object SavedLocations : PositionChoice
+}
+
 @Composable
 fun StartSessionDialog(
     vehicles: List<Vehicle>,
@@ -120,6 +126,8 @@ fun StartSessionDialog(
     // marker sulla mini-mappa, salvato come due Double perché LatLng non è salvabile con rememberSaveable
     var pinLat by rememberSaveable { mutableStateOf<Double?>(null) }
     var pinLng by rememberSaveable { mutableStateOf<Double?>(null) }
+    // modalità scelta nel primo menu: false = GPS (con mini-mappa), true = "Saved Locations" (con il secondo menu)
+    var savedMode by rememberSaveable { mutableStateOf(false) }
 
     val cameraPositionState = rememberCameraPositionState()
 
@@ -127,9 +135,9 @@ fun StartSessionDialog(
     val sourceLocation = savedLocations.find { it.id == sourceLocationId }
 
     // con sorgente GPS il marker parte dalla posizione letta all'apertura e la mappa la centra
-    LaunchedEffect(gpsPosition, sourceLocation == null) {
+    LaunchedEffect(gpsPosition, savedMode) {
         val position = gpsPosition ?: return@LaunchedEffect
-        if (sourceLocation == null) {
+        if (!savedMode) {
             pinLat = position.latitude
             pinLng = position.longitude
             cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MAP_ZOOM)
@@ -140,7 +148,8 @@ fun StartSessionDialog(
     val pinLongitude = pinLng
     val gpsPin: LatLng? = if (pinLatitude != null && pinLongitude != null) LatLng(pinLatitude, pinLongitude) else null
     // il punto finale: coordinate del luogo salvato, oppure il marker sulla mini-mappa
-    val point: LatLng? = sourceLocation?.let { LatLng(it.latitude, it.longitude) } ?: gpsPin
+    // in modalità saved location il punto è quello del luogo scelto (null finché non si sceglie); altrimenti il marker
+    val point: LatLng? = if (savedMode) sourceLocation?.let { LatLng(it.latitude, it.longitude) } else gpsPin
 
     // valori derivati dal testo: ricalcolati a ogni modifica
     val hourlyRate = hourlyRateText.toPositiveNumberOrNull()
@@ -253,18 +262,48 @@ fun StartSessionDialog(
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-                // null è la voce "GPS": è la prima della lista e viene preselezionata
-                val locationOptions: List<SavedLocation?> = listOf(null) + savedLocations
+                // primo menu: GPS, oppure "Saved Locations" (la voce compare solo se ci sono luoghi salvati)
+                val positionOptions = listOfNotNull(
+                    PositionChoice.Gps,
+                    PositionChoice.SavedLocations.takeIf { savedLocations.isNotEmpty() }
+                )
                 DropdownField(
                     label = "Posizione",
-                    selectedLabel = sourceLocation?.name ?: "Posizione GPS attuale",
-                    options = locationOptions,
-                    optionLabel = { it?.name ?: "Posizione GPS attuale" },
-                    onSelect = { sourceLocationId = it?.id }
+                    selectedLabel = if (savedMode) "Saved Locations" else "Posizione GPS attuale",
+                    options = positionOptions,
+                    optionLabel = { choice ->
+                        when (choice) {
+                            PositionChoice.Gps -> "Posizione GPS attuale"
+                            PositionChoice.SavedLocations -> "Saved Locations"
+                        }
+                    },
+                    onSelect = { choice ->
+                        when (choice) {
+                            PositionChoice.Gps -> {
+                                sourceLocationId = null
+                                savedMode = false
+                            }
+                            PositionChoice.SavedLocations -> {
+                                savedMode = true
+                            }
+                        }
+                    }
                 )
 
+                // secondo menu: i luoghi salvati, aperto dalla voce "Saved Locations"
+                if (savedMode) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    DropdownField(
+                        label = "Luoghi salvati",
+                        selectedLabel = sourceLocation?.name ?: "Seleziona un luogo",
+                        options = savedLocations,
+                        optionLabel = { it.name },
+                        onSelect = { location -> sourceLocationId = location.id }
+                    )
+                }
+
                 // la mini-mappa esiste solo con sorgente GPS: con una saved location il punto è già fissato
-                if (sourceLocation == null) {
+                if (!savedMode) {
                     Spacer(modifier = Modifier.height(8.dp))
                     when {
                         gpsDenied -> PermissionDeniedBox(onOpenSettings = onOpenSettings)
