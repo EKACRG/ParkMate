@@ -11,6 +11,10 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.tasks.CancellationTokenSource
 import kotlin.coroutines.resume
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+
+// tempo massimo di attesa del GPS: oltre, la lettura è considerata fallita
+private const val LOCATION_TIMEOUT_MS = 10_000L
 
 class DeviceLocationProvider(private val context: Context) {
     private val fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
@@ -28,19 +32,24 @@ class DeviceLocationProvider(private val context: Context) {
 
     // il controllo è già in hasLocationPermission(), Lint non riesce a tracciarlo attraverso
     // una funzione separata e segnala il warning comunque
+    // se il GPS non risponde entro LOCATION_TIMEOUT_MS, withTimeoutOrNull restituisce null
+    // invece di lasciare la coroutine in attesa per sempre
     @SuppressLint("MissingPermission")
     suspend fun getCurrentLocation(): Location? {
         if (!hasLocationPermission()) return null
 
-        val cancellationTokenSource = CancellationTokenSource()
-        return suspendCancellableCoroutine { continuation ->
-            fusedLocationClient.getCurrentLocation(
-                Priority.PRIORITY_HIGH_ACCURACY,
-                cancellationTokenSource.token
-            )
-                .addOnSuccessListener { location -> continuation.resume(location) }
-                .addOnFailureListener { continuation.resume(null) }
-            continuation.invokeOnCancellation { cancellationTokenSource.cancel() }
+        return withTimeoutOrNull(LOCATION_TIMEOUT_MS) {
+            val cancellationTokenSource = CancellationTokenSource()
+            suspendCancellableCoroutine { continuation ->
+                fusedLocationClient.getCurrentLocation(
+                    Priority.PRIORITY_HIGH_ACCURACY,
+                    cancellationTokenSource.token
+                )
+                    .addOnSuccessListener { location -> continuation.resume(location) }
+                    .addOnFailureListener { continuation.resume(null) }
+                // se il timeout scatta, la coroutine viene annullata: annulliamo anche la richiesta al GPS
+                continuation.invokeOnCancellation { cancellationTokenSource.cancel() }
+            }
         }
     }
 }

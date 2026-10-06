@@ -3,25 +3,32 @@ package com.example.parkmate.ui.map
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,18 +41,33 @@ import androidx.compose.ui.unit.dp
 import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.SavedLocation
 import com.example.parkmate.data.local.entity.Vehicle
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.CameraPositionState
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.rememberCameraPositionState
+import com.google.maps.android.compose.rememberUpdatedMarkerState
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
-// dati inseriti nel modale. savedLocation == null significa "posizione GPS"
+// altezza fissa della mini-mappa: se il contenuto supera lo schermo, il modale scorre
+private val MAP_HEIGHT = 180.dp
+private const val MAP_ZOOM = 16f
+
+// dati inseriti nel modale. latitude e longitude sono il punto finale: la saved location scelta
+// oppure il marker spostato sulla mini-mappa (solo con sorgente GPS).
+// savedLocationId è l'id della saved location scelta, null per il GPS
 data class StartSessionInput(
     val vehicleId: Long,
     val type: ParkType,
     val hourlyRate: Double?,
     val fixedCost: Double?,
     val expiryTime: Long?,
-    val savedLocation: SavedLocation?
+    val latitude: Double,
+    val longitude: Double,
+    val savedLocationId: Long?
 )
 
 // ore e minuti come testo: null se uno dei due non è un numero nell'intervallo giusto
@@ -79,8 +101,11 @@ fun StartSessionDialog(
     vehicles: List<Vehicle>,
     activeVehicleIds: Set<Long>,
     savedLocations: List<SavedLocation>,
+    gpsPosition: LatLng?,
+    gpsDenied: Boolean,
     errorMessage: String?,
     onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit,
     onConfirm: (StartSessionInput) -> Unit
 ) {
     // stato del form: rememberSaveable lo conserva anche alla ricostruzione dell'activity
@@ -90,8 +115,32 @@ fun StartSessionDialog(
     var fixedCostText by rememberSaveable { mutableStateOf("") }
     var expiryHourText by rememberSaveable { mutableStateOf("") }
     var expiryMinuteText by rememberSaveable { mutableStateOf("") }
-    // null = posizione GPS, altrimenti l'id della saved location scelta
-    var savedLocationId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // sorgente scelta nel menu: null = GPS, altrimenti l'id della saved location
+    var sourceLocationId by rememberSaveable { mutableStateOf<Long?>(null) }
+    // marker sulla mini-mappa, salvato come due Double perché LatLng non è salvabile con rememberSaveable
+    var pinLat by rememberSaveable { mutableStateOf<Double?>(null) }
+    var pinLng by rememberSaveable { mutableStateOf<Double?>(null) }
+
+    val cameraPositionState = rememberCameraPositionState()
+
+    // saved location scelta, oppure null se la sorgente è il GPS
+    val sourceLocation = savedLocations.find { it.id == sourceLocationId }
+
+    // con sorgente GPS il marker parte dalla posizione letta all'apertura e la mappa la centra
+    LaunchedEffect(gpsPosition, sourceLocation == null) {
+        val position = gpsPosition ?: return@LaunchedEffect
+        if (sourceLocation == null) {
+            pinLat = position.latitude
+            pinLng = position.longitude
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MAP_ZOOM)
+        }
+    }
+
+    val pinLatitude = pinLat
+    val pinLongitude = pinLng
+    val gpsPin: LatLng? = if (pinLatitude != null && pinLongitude != null) LatLng(pinLatitude, pinLongitude) else null
+    // il punto finale: coordinate del luogo salvato, oppure il marker sulla mini-mappa
+    val point: LatLng? = sourceLocation?.let { LatLng(it.latitude, it.longitude) } ?: gpsPin
 
     // valori derivati dal testo: ricalcolati a ogni modifica
     val hourlyRate = hourlyRateText.toPositiveNumberOrNull()
@@ -104,14 +153,14 @@ fun StartSessionDialog(
         ParkType.HOURLY_PAID -> hourlyRate != null
         ParkType.FIXED_TICKET -> fixedCost != null && expiry != null
     }
-    val canConfirm = vehicleId != null && typeValid
+    val canConfirm = vehicleId != null && typeValid && point != null
     val hasActiveSession = vehicleId?.let { it in activeVehicleIds } ?: false
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Avvia sosta") },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 // messaggi in alto: compaiono solo quando servono
                 if (hasActiveSession) {
                     Text(
@@ -208,19 +257,44 @@ fun StartSessionDialog(
                 val locationOptions: List<SavedLocation?> = listOf(null) + savedLocations
                 DropdownField(
                     label = "Posizione",
-                    selectedLabel = savedLocations.find { it.id == savedLocationId }?.name ?: "Posizione GPS attuale",
+                    selectedLabel = sourceLocation?.name ?: "Posizione GPS attuale",
                     options = locationOptions,
                     optionLabel = { it?.name ?: "Posizione GPS attuale" },
-                    onSelect = { savedLocationId = it?.id }
+                    onSelect = { sourceLocationId = it?.id }
                 )
+
+                // la mini-mappa esiste solo con sorgente GPS: con una saved location il punto è già fissato
+                if (sourceLocation == null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    when {
+                        gpsDenied -> PermissionDeniedBox(onOpenSettings = onOpenSettings)
+                        gpsPin == null -> LoadingBox(loading = errorMessage == null)
+                        else -> PositionMap(
+                            pin = gpsPin,
+                            cameraPositionState = cameraPositionState,
+                            onMove = { moved ->
+                                pinLat = moved.latitude
+                                pinLng = moved.longitude
+                            },
+                            onRecenter = {
+                                gpsPosition?.let { position ->
+                                    pinLat = position.latitude
+                                    pinLng = position.longitude
+                                    cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MAP_ZOOM)
+                                }
+                            }
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
             TextButton(
                 enabled = canConfirm,
                 onClick = {
-                    // il pulsante è abilitato solo con un veicolo, quindi qui non serve un controllo vero
+                    // il pulsante è abilitato solo con veicolo, tipo valido e punto della sosta
                     val id = vehicleId ?: return@TextButton
+                    val target = point ?: return@TextButton
                     onConfirm(
                         StartSessionInput(
                             vehicleId = id,
@@ -228,7 +302,9 @@ fun StartSessionDialog(
                             hourlyRate = if (type == ParkType.HOURLY_PAID) hourlyRate else null,
                             fixedCost = if (type == ParkType.FIXED_TICKET) fixedCost else null,
                             expiryTime = if (type == ParkType.FIXED_TICKET) expiry?.let { nextExpiryMillis(it) } else null,
-                            savedLocation = savedLocations.find { it.id == savedLocationId }
+                            latitude = target.latitude,
+                            longitude = target.longitude,
+                            savedLocationId = sourceLocation?.id
                         )
                     )
                 }
@@ -238,6 +314,69 @@ fun StartSessionDialog(
             TextButton(onClick = onDismiss) { Text("Annulla") }
         }
     )
+}
+
+// mini-mappa con zoom e pan; il tap sposta il marker; "Ricentra" è sovrapposto in basso a destra
+@Composable
+private fun PositionMap(
+    pin: LatLng,
+    cameraPositionState: CameraPositionState,
+    onMove: (LatLng) -> Unit,
+    onRecenter: () -> Unit
+) {
+    Box(modifier = Modifier
+        .fillMaxWidth()
+        .height(MAP_HEIGHT)
+    ) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState,
+            onMapClick = onMove
+        ) {
+            Marker(
+                state = rememberUpdatedMarkerState(position = pin),
+                title = "Posizione della sosta"
+            )
+        }
+        FilledTonalButton(
+            onClick = onRecenter,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(8.dp)
+        ) {
+            Text("Ricentra sul GPS")
+        }
+    }
+}
+
+// in attesa della posizione GPS: uno spinner; se la lettura fallisce, il messaggio è in cima al modale
+@Composable
+private fun LoadingBox(loading: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(MAP_HEIGHT),
+        contentAlignment = Alignment.Center
+    ) {
+        if (loading) CircularProgressIndicator()
+    }
+}
+
+// permesso negato: messaggio + pulsante per andare nelle impostazioni dell'app
+@Composable
+private fun PermissionDeniedBox(onOpenSettings: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(MAP_HEIGHT)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Permesso negato, apri le impostazioni per fornire il permesso")
+        TextButton(onClick = onOpenSettings) { Text("Apri impostazioni") }
+    }
 }
 
 // menu a tendina: il campo mostra la voce scelta, il menu si apre al tocco

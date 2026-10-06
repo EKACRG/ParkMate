@@ -17,12 +17,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.parkmate.ParkMateViewModelFactory
 import com.example.parkmate.data.local.entity.ParkingSession
 import com.example.parkmate.data.location.DeviceLocationProvider
 import com.example.parkmate.ui.components.PermissionRequester
+import com.example.parkmate.ui.components.openAppSettings
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -70,19 +72,21 @@ fun MapScreen(
         position = CameraPosition.fromLatLngZoom(BOLOGNA, 13f)
     }
 
+    val context = LocalContext.current
     var showStartDialog by remember { mutableStateOf(false) }
-    // input in attesa della posizione GPS: il permesso arriva in modo asincrono, quindi lo teniamo qui
-    var pendingStart by remember { mutableStateOf<StartSessionInput?>(null) }
     var startError by remember { mutableStateOf<String?>(null) }
+    // posizione gps letta all'apertura del modale
+    var gpsPosition by remember { mutableStateOf<LatLng?>(null) }
+    var gpsDenied by remember { mutableStateOf(false) }
 
-    // avvia la sosta con le coordinate scelte, poi chiude il modale
-    fun start(input: StartSessionInput, latitude: Double, longitude: Double) {
+    // avvia la sosta alle coordinate finali del marker, poi chiude il modale
+    fun start(input: StartSessionInput) {
         viewModel.startSession(
             vehicleId = input.vehicleId,
             type = input.type,
-            latitude = latitude,
-            longitude = longitude,
-            savedLocationId = input.savedLocation?.id,
+            latitude = input.latitude,
+            longitude = input.longitude,
+            savedLocationId = input.savedLocationId,
             hourlyRate = input.hourlyRate,
             fixedCost = input.fixedCost,
             expiryTime = input.expiryTime
@@ -94,20 +98,19 @@ fun MapScreen(
     PermissionRequester(
         permissions = LOCATION_PERMISSIONS,
         onResult = { grants ->
-            val input = pendingStart ?: return@PermissionRequester
-            pendingStart = null
             if (grants.values.any { it }) {
-                // il permesso c'è: la posizione è una chiamata sospesa, quindi la lanciamo in una coroutine
+                gpsDenied = false
+                // la posizione è una chiamata sospesa quindi la lanciamo in una coroutine
                 scope.launch {
                     val location = deviceLocationProvider.getCurrentLocation()
                     if (location != null) {
-                        start(input, location.latitude, location.longitude)
+                        gpsPosition = LatLng(location.latitude, location.longitude)
                     } else {
                         startError = "Posizione GPS non disponibile. Riprova o scegli una saved location."
                     }
                 }
             } else {
-                startError = "Permesso di posizione negato. Scegli una saved location."
+                gpsDenied = true
             }
         },
         rationaleTitle = "Serve la posizione",
@@ -146,8 +149,12 @@ fun MapScreen(
 
             FloatingActionButton(
                 onClick = {
+                    // azzeriamo prima di chiedere il permesso, così nessun valore della volta precedente sopravvive
                     startError = null
+                    gpsPosition = null
+                    gpsDenied = false
                     showStartDialog = true
+                    request()
                 },
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -162,22 +169,15 @@ fun MapScreen(
                 vehicles = vehicles,
                 activeVehicleIds = activeSessions.map { it.vehicleId }.toSet(),
                 savedLocations = savedLocations,
+                gpsPosition = gpsPosition,
+                gpsDenied = gpsDenied,
                 errorMessage = startError,
                 onDismiss = {
                     showStartDialog = false
                     startError = null
                 },
-                onConfirm = { input ->
-                    val location = input.savedLocation
-                    if (location != null) {
-                        // saved location: coordinate note, nessun permesso necessario
-                        start(input, location.latitude, location.longitude)
-                    } else {
-                        // GPS: salviamo l'input e chiediamo il permesso; il risultato arriva in onResult
-                        pendingStart = input
-                        request()
-                    }
-                }
+                onOpenSettings = { context.openAppSettings() },
+                onConfirm = { input -> start(input) }
             )
         }
     }

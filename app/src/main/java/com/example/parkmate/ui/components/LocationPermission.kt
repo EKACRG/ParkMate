@@ -37,7 +37,7 @@ private fun Context.findActivity(): Activity? {
 }
 
 // apre la schermata di sistema dei permessi di questa app, unico modo per concedere un permesso negato in modo permanente
-private fun Context.openAppSettings() {
+fun Context.openAppSettings() {
     val intent = Intent(
         Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
         Uri.fromParts("package", packageName, null)
