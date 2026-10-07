@@ -5,12 +5,19 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.ParkingSession
+import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.time.Duration.Companion.milliseconds
 
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -27,6 +34,14 @@ private fun formatDuration(duration: Duration): String {
     return "${duration.toHours()}h ${minutes}m"
 }
 
+private fun formatCountdown(duration: Duration): String {
+    val totalSeconds = duration.seconds
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return "${hours}h ${minutes}m ${seconds}s"
+}
+
 // scheda di sola lettura per una sosta attiva, aperta con il tap sul marker
 @Composable
 fun SessionDetailsDialog(
@@ -35,7 +50,29 @@ fun SessionDetailsDialog(
     onDismiss: () -> Unit,
     onEndSession: () -> Unit
 ) {
-    val now = System.currentTimeMillis()
+    var now by remember(session.id) { mutableStateOf(System.currentTimeMillis()) }
+
+    // per il fixed ticket il ciclo si ferma da sé alla scadenza, non c'è altro da aggiornare
+    // per il hourly paid il costo continua a salire finché non termina la sosta
+    LaunchedEffect(session.id) {
+        when(session.type) {
+            ParkType.FREE -> Unit
+            ParkType.HOURLY_PAID -> {
+                while (true) {
+                    delay(1000.milliseconds)
+                    now = System.currentTimeMillis()
+                }
+            }
+
+            ParkType.FIXED_TICKET -> {
+                val expiry = session.expiryTime ?: return@LaunchedEffect
+                while (now < expiry) {
+                    delay(1000.milliseconds)
+                    now = System.currentTimeMillis()
+                }
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -60,7 +97,7 @@ fun SessionDetailsDialog(
                             val remaining = expiry - now
                             if (remaining > 0) {
                                 Text("Scade alle ${formatTime(expiry)}")
-                                Text("Tempo rimanente: ${formatDuration(Duration.ofMillis(remaining))}")
+                                Text("Tempo rimanente: ${formatCountdown(Duration.ofMillis(remaining))}")
                             } else {
                                 Text("Scaduto alle ${formatTime(expiry)}")
                             }
