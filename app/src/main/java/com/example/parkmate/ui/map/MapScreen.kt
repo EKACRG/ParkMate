@@ -78,6 +78,8 @@ fun MapScreen(
     // posizione gps letta all'apertura del modale
     var gpsPosition by remember { mutableStateOf<LatLng?>(null) }
     var gpsDenied by remember { mutableStateOf(false) }
+    // sosta selezionata con il tap sul marker: apre la scheda di dettaglio
+    var selectedSession by remember { mutableStateOf<ParkingSession?>(null) }
 
     // avvia la sosta alle coordinate finali del marker, poi chiude il modale
     fun start(input: StartSessionInput) {
@@ -129,7 +131,13 @@ fun MapScreen(
                         state = rememberUpdatedMarkerState(
                             position = LatLng(session.latitude, session.longitude)
                         ),
-                        title = markerTitle(session, vehicleNames)
+                        title = markerTitle(session, vehicleNames),
+                        // true consuma il tocco: niente centratura automatica né InfoWindow di default,
+                        // apriamo la nostra scheda al suo posto
+                        onClick = {
+                            selectedSession = session
+                            true
+                        }
                     )
                 }
 
@@ -178,6 +186,18 @@ fun MapScreen(
                 },
                 onOpenSettings = { context.openAppSettings() },
                 onConfirm = { input -> start(input) }
+            )
+        }
+
+        selectedSession?.let { session ->
+            SessionDetailsDialog(
+                session = session,
+                vehicleName = vehicleNames[session.vehicleId] ?: "Unknown vehicle",
+                onDismiss = { selectedSession = null },
+                onEndSession = {
+                    viewModel.endSession(session.id)
+                    selectedSession = null
+                }
             )
         }
     }
