@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.LocalParking
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -21,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.parkmate.ParkMateViewModelFactory
+import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.ParkingSession
 import com.example.parkmate.data.location.DeviceLocationProvider
 import com.example.parkmate.ui.components.PermissionRequester
@@ -32,10 +34,12 @@ import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberUpdatedMarkerState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.time.Duration.Companion.milliseconds
 
 // centro iniziale della mappa, finché non c'è la posizione GPS
 private val BOLOGNA = LatLng(44.4949, 11.3426)
@@ -55,6 +59,10 @@ private fun markerTitle(session: ParkingSession, vehicleNames: Map<Long, String>
     val start = Instant.ofEpochMilli(session.startTime).atZone(ZoneId.systemDefault()).format(START_TIME_FORMAT)
     return "$name, dalle $start"
 }
+
+// ticket scaduto ma non chiuso: colore diverso del marker, vedi DECISIONI.md
+private fun isExpiredTicket(session: ParkingSession, now: Long): Boolean =
+    session.type == ParkType.FIXED_TICKET && session.expiryTime != null && now >= session.expiryTime
 
 @Composable
 fun MapScreen(
@@ -80,6 +88,15 @@ fun MapScreen(
     var gpsDenied by remember { mutableStateOf(false) }
     // sosta selezionata con il tap sul marker: apre la scheda di dettaglio
     var selectedSession by remember { mutableStateOf<ParkingSession?>(null) }
+
+    // basta un minuto di tolleranza per il colore dei ticket scaduti: non serve il secondo come nella scheda
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(60_000.milliseconds)
+            now = System.currentTimeMillis()
+        }
+    }
 
     // avvia la sosta alle coordinate finali del marker, poi chiude il modale
     fun start(input: StartSessionInput) {
@@ -132,6 +149,12 @@ fun MapScreen(
                             position = LatLng(session.latitude, session.longitude)
                         ),
                         title = markerTitle(session, vehicleNames),
+                        // arancione per i ticket scaduti ma non chiusi (overstay), rosso di default per il resto
+                        icon = if (isExpiredTicket(session, now)) {
+                            BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
+                        } else {
+                            null
+                        },
                         // true consuma il tocco: niente centratura automatica né InfoWindow di default,
                         // apriamo la nostra scheda al suo posto
                         onClick = {
@@ -192,7 +215,7 @@ fun MapScreen(
         selectedSession?.let { session ->
             SessionDetailsDialog(
                 session = session,
-                vehicleName = vehicleNames[session.vehicleId] ?: "Unknown vehicle",
+                vehicleName = vehicleNames[session.vehicleId] ?: "Veicolo",
                 onDismiss = { selectedSession = null },
                 onEndSession = {
                     viewModel.endSession(session.id)
