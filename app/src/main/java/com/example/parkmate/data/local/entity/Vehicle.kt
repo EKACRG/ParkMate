@@ -15,5 +15,6 @@ data class Vehicle(
     val id: Long = 0,
     val name: String,
     val type: VehicleType,
+    val licensePlate: String? = null,
     val isArchived: Boolean = false
 )

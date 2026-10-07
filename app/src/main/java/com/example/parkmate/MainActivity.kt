@@ -12,13 +12,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val parkMateApplication = application as ParkMateApplication
         val viewModelFactory = ParkMateViewModelFactory(
-            (application as ParkMateApplication).vehicleRepository
+            parkMateApplication.vehicleRepository,
+            parkMateApplication.savedLocationRepository,
+            parkMateApplication.parkingSessionRepository
         )
 
         setContent {
             ParkMateTheme {
-                ParkMateNavHost(viewModelFactory = viewModelFactory)
+                ParkMateNavHost(
+                    viewModelFactory = viewModelFactory,
+                    deviceLocationProvider = parkMateApplication.deviceLocationProvider
+                )
             }
         }
     }

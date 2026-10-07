@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -34,12 +35,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.parkmate.ParkMateViewModelFactory
 import com.example.parkmate.data.local.entity.Vehicle
 import com.example.parkmate.data.local.entity.VehicleType
+import com.example.parkmate.ui.components.ConfirmDialog
+import com.example.parkmate.ui.components.EmptyState
+
+private const val MIN_LICENSE_PLATE_LENGTH = 1
+private const val MAX_LICENSE_PLATE_LENGTH = 14
 
 @Composable
 fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
@@ -53,19 +58,12 @@ fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         if (vehicles.isEmpty()) {
-            Text(
-                text = "Nessun veicolo. Tocca + per aggiungerne uno",
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(32.dp),
-                textAlign = TextAlign.Center
-            )
+            EmptyState("Nessun veicolo. Tocca + per aggiungerne uno")
         }
         else {
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // key serve a Compose per riconoscere gli elementi quando la lista si riordina
@@ -94,8 +92,8 @@ fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
         VehicleFormDialog(
             initialVehicle = null,
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, type ->
-                viewModel.addVehicle(Vehicle(name = name, type = type))
+            onConfirm = { name, type, licensePlate ->
+                viewModel.addVehicle(Vehicle(name = name, type = type, licensePlate = licensePlate))
                 showAddDialog = false
             }
         )
@@ -105,28 +103,24 @@ fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
         VehicleFormDialog(
             initialVehicle = vehicle,
             onDismiss = { vehicleBeingEdited = null },
-            onConfirm = { name, type ->
-                viewModel.updateVehicle(vehicle.copy(name = name, type = type))
+            onConfirm = { name, type, licensePlate ->
+                viewModel.updateVehicle(vehicle.copy(name = name, type = type, licensePlate = licensePlate))
                 vehicleBeingEdited = null
             }
         )
     }
 
     vehicleToArchive?.let { vehicle ->
-        AlertDialog(
-            onDismissRequest = { vehicleToArchive = null },
-            title = { Text("Archiviare veicolo?") },
-            text = {
-                Text("\"${vehicle.name}\" sparirà dalla gestione veicoli, ma resterà visibile nello storico.")
+        ConfirmDialog(
+            title= "Archiviare veicolo?",
+            text = "\"${vehicle.name}\" sparirà dalla gestione veicoli, ma resterà visibile nello storico.",
+            confirmLabel = "Archivia",
+            onConfirm = {
+                viewModel.archiveVehicle(vehicle)
+                vehicleToArchive = null
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.archiveVehicle(vehicle)
-                    vehicleToArchive = null
-                }) { Text("Archivia") }
-            },
-            dismissButton = {
-                TextButton(onClick = { vehicleToArchive = null }) { Text("Annulla") }
+            onDismiss = {
+                vehicleToArchive = null
             }
         )
     }
@@ -160,11 +154,15 @@ private fun VehicleRow(vehicle: Vehicle, onEdit: () -> Unit, onArchive: () -> Un
 private fun VehicleFormDialog(
     initialVehicle: Vehicle?,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, type: VehicleType) -> Unit
+    onConfirm: (name: String, type: VehicleType, licensePlate: String?) -> Unit
 ) {
     // a differenza di remember salva il valore alla ricostruzione dell'activity
     var name by rememberSaveable(initialVehicle?.id) { mutableStateOf(initialVehicle?.name ?: "") }
     var type by rememberSaveable(initialVehicle?.id) { mutableStateOf(initialVehicle?.type ?: VehicleType.CAR) }
+    var licensePlate by rememberSaveable(initialVehicle?.id) { mutableStateOf(initialVehicle?.licensePlate ?: "") }
+
+    // biciclette non hanno targa: il campo compare solo per gli altri tipi, ed è obbligatorio quando compare
+    val requiresLicensePlate = type != VehicleType.BICYCLE
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -189,12 +187,23 @@ private fun VehicleFormDialog(
                         Text(option.displayLabel())
                     }
                 }
+                if (requiresLicensePlate) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = licensePlate,
+                        onValueChange = { licensePlate = it.uppercase().take(MAX_LICENSE_PLATE_LENGTH) },
+                        label = { Text("Targa") },
+                        singleLine = true
+                    )
+                }
             }
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(name, type) },
-                enabled = name.isNotBlank()
+                onClick = {
+                    onConfirm(name, type, if (requiresLicensePlate) licensePlate else null)
+                },
+                enabled = name.isNotBlank() && (!requiresLicensePlate || isValidLicensePlate(licensePlate))
             ) { Text("Salva") }
         },
         dismissButton = {
@@ -208,3 +217,6 @@ private fun VehicleType.displayLabel(): String = when (this) {
     VehicleType.MOTORCYCLE -> "Moto"
     VehicleType.BICYCLE -> "Bicicletta"
 }
+
+private fun isValidLicensePlate(lPlate: String): Boolean =
+    lPlate.length in MIN_LICENSE_PLATE_LENGTH..MAX_LICENSE_PLATE_LENGTH && lPlate.all { it.isDigit() || it in 'A'..'Z' }
