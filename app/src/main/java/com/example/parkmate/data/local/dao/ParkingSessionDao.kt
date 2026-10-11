@@ -18,6 +18,10 @@ interface ParkingSessionDao {
     @Query("SELECT * FROM parking_session WHERE endTime IS NULL")
     fun getActiveSessions(): LiveData<List<ParkingSession>>
 
+    // lettura singola, non osservabile: per il Worker, che non può osservare un LiveData
+    @Query("SELECT * FROM parking_session WHERE endTime IS NULL")
+    suspend fun getActiveSessionsOnce(): List<ParkingSession>
+
     @Query("SELECT * FROM parking_session WHERE vehicleId = :vehicleId AND endTime IS NULL LIMIT 1")
     suspend fun getActiveSessionForVehicle(vehicleId: Long): ParkingSession?
 

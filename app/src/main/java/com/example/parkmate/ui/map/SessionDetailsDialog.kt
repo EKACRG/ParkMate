@@ -12,6 +12,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.ParkingSession
+import com.example.parkmate.data.local.entity.hourlyCostAt
+import com.example.parkmate.util.formatDuration
 import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.Instant
@@ -28,11 +30,6 @@ private fun ParkType.displayLabel(): String = when (this) {
 }
 
 private fun formatTime(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(TIME_FORMAT)
-
-private fun formatDuration(duration: Duration): String {
-    val minutes = duration.toMinutes() % 60
-    return "${duration.toHours()}h ${minutes}m"
-}
 
 private fun formatCountdown(duration: Duration): String {
     val totalSeconds = duration.seconds
@@ -87,10 +84,7 @@ fun SessionDetailsDialog(
                     ParkType.HOURLY_PAID -> {
                         val elapsed = Duration.ofMillis((now - session.startTime).coerceAtLeast(0))
                         Text("Tempo trascorso: ${formatDuration(elapsed)}")
-                        session.hourlyRate?.let { rate ->
-                            val cost = elapsed.toMillis() / 3_600_000.0 * rate
-                            Text("Costo stimato: €%.2f".format(cost))
-                        }
+                        Text("Costo stimato: €%.2f".format(session.hourlyCostAt(now)))
                     }
                     ParkType.FIXED_TICKET -> {
                         session.expiryTime?.let { expiry ->

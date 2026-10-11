@@ -16,6 +16,11 @@ class VehicleRepository(
 
     val activeVehicles: LiveData<List<Vehicle>> = vehicleDao.getActiveVehicles()
 
+    // per il Worker del riepilogo periodico: nome del veicolo di una sessione attiva
+    suspend fun getById(vehicleId: Long): Vehicle? = withContext(Dispatchers.IO) {
+        vehicleDao.getById(vehicleId)
+    }
+
     suspend fun addVehicle(vehicle: Vehicle) = withContext(Dispatchers.IO) {
         vehicleDao.insert(normalizeLicensePlate(vehicle))
     }
