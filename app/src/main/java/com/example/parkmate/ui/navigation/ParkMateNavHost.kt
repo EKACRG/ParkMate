@@ -18,6 +18,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,7 +35,9 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.parkmate.ParkMateViewModelFactory
+import com.example.parkmate.background.TicketAlarmScheduler
 import com.example.parkmate.data.location.DeviceLocationProvider
+import com.example.parkmate.ui.components.RequestNotificationPermissionOnce
 import com.example.parkmate.ui.history.HistoryScreen
 import com.example.parkmate.ui.map.MapScreen
 import com.example.parkmate.ui.map.SavedLocationsScreen
@@ -101,7 +104,10 @@ private fun topBarConfig(
 @Composable
 fun ParkMateNavHost(
     viewModelFactory: ParkMateViewModelFactory,
-    deviceLocationProvider: DeviceLocationProvider
+    deviceLocationProvider: DeviceLocationProvider,
+    ticketAlarmScheduler: TicketAlarmScheduler,
+    openMapRequested: Boolean,
+    onOpenMapHandled: () -> Unit
 ) {
     // crea il controller di navigazione
     val navController = rememberNavController()
@@ -110,6 +116,21 @@ fun ParkMateNavHost(
     val currentDestination = currentBackStackEntry?.destination
     // layer delle saved location sulla mappa
     var showSavedLocations by rememberSaveable { mutableStateOf(true) }
+
+    // permesso di notifica, chiesto una sola volta all'avvio
+    RequestNotificationPermissionOnce()
+
+    // dalla notifica di riepilogo: salta sulla Mappa invece di restare sulla startDestination
+    LaunchedEffect(openMapRequested) {
+        if (openMapRequested) {
+            navController.navigate(ParkMateDestination.TopLevel.Map.route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+            onOpenMapHandled()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -174,6 +195,7 @@ fun ParkMateNavHost(
                 MapScreen(
                     viewModelFactory = viewModelFactory,
                     deviceLocationProvider = deviceLocationProvider,
+                    ticketAlarmScheduler = ticketAlarmScheduler,
                     showSavedLocations = showSavedLocations
                 )
             }
