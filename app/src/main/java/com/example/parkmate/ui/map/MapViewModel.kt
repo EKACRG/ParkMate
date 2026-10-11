@@ -28,6 +28,7 @@ class MapViewModel(
 
     fun startSession(
         vehicleId: Long,
+        vehicleName: String,
         type: ParkType,
         latitude: Double,
         longitude: Double,
@@ -39,6 +40,7 @@ class MapViewModel(
         viewModelScope.launch {
             parkingSessionRepository.startSession(
                 vehicleId = vehicleId,
+                vehicleName = vehicleName,
                 type = type,
                 latitude = latitude,
                 longitude = longitude,

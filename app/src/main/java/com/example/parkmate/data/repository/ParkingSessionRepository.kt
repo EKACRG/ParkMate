@@ -2,21 +2,30 @@ package com.example.parkmate.data.repository
 
 import androidx.lifecycle.LiveData
 import androidx.room.withTransaction
+import com.example.parkmate.background.TicketAlarmScheduler
 import com.example.parkmate.data.local.ParkMateDatabase
 import com.example.parkmate.data.local.dao.ParkingSessionDao
 import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.ParkingSession
+import com.example.parkmate.data.local.entity.hourlyCostAt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class ParkingSessionRepository(
     private val parkingSessionDao: ParkingSessionDao,
-    private val database: ParkMateDatabase
+    private val database: ParkMateDatabase,
+    private val ticketAlarmScheduler: TicketAlarmScheduler
 ) {
     val activeSessions: LiveData<List<ParkingSession>> = parkingSessionDao.getActiveSessions()
 
+    // per il Worker del riepilogo periodico, non per la UI
+    suspend fun getActiveSessionsSnapshot(): List<ParkingSession> = withContext(Dispatchers.IO) {
+        parkingSessionDao.getActiveSessionsOnce()
+    }
+
     suspend fun startSession(
         vehicleId: Long,
+        vehicleName: String,
         type: ParkType,
         latitude: Double,
         longitude: Double,
@@ -53,13 +62,24 @@ class ParkingSessionRepository(
         )
 
         // garantisce atomicità, se qualcosa non funziona si torna allo stato precedente
-        database.withTransaction {
+        // id della nuova sessione e l'id di quella chiusa autameticamente, se c'era
+        val (newSessionId, closedSessionId) = database.withTransaction {
             val activeSession = parkingSessionDao.getActiveSessionForVehicle(vehicleId)
             if (activeSession != null) {
                 parkingSessionDao.update(closeSession(activeSession, endTime = startTime))
             }
-            parkingSessionDao.insert(newSession)
+            parkingSessionDao.insert(newSession) to activeSession?.id
         }
+
+        // AlarmManager si chiama solo dopo che la transazione è confermata
+        if (closedSessionId != null) {
+            ticketAlarmScheduler.cancel(closedSessionId)
+        }
+        if (type == ParkType.FIXED_TICKET) {
+            ticketAlarmScheduler.schedule(newSessionId, vehicleName, requireNotNull(expiryTime))
+        }
+
+        newSessionId
     }
 
     suspend fun endSession(sessionId: Long) = withContext(Dispatchers.IO) {
@@ -69,16 +89,23 @@ class ParkingSessionRepository(
                 parkingSessionDao.update(closeSession(session, endTime = System.currentTimeMillis()))
             }
         }
+
+        // cancel() non fa nulla se questa sessione non aveva alarm programmati
+        ticketAlarmScheduler.cancel(sessionId)
     }
 
     // chiamato da VehicleRepository quando un veicolo viene archiviato: se ha una sessione
     // attiva va chiusa, non lasciata orfana di un veicolo sparito dalla gestione
     suspend fun endActiveSessionForVehicle(vehicleId: Long) = withContext(Dispatchers.IO) {
-        database.withTransaction {
+        val sessionsId = database.withTransaction {
             val session = parkingSessionDao.getActiveSessionForVehicle(vehicleId)
             if (session != null) {
                 parkingSessionDao.update(closeSession(session, endTime = System.currentTimeMillis()))
             }
+            session?.id
+        }
+        if (sessionsId != null) {
+            ticketAlarmScheduler.cancel(sessionsId)
         }
     }
 
@@ -93,13 +120,7 @@ class ParkingSessionRepository(
     private fun closeSession(session: ParkingSession, endTime: Long): ParkingSession {
         val finalCost = when (session.type) {
             ParkType.FREE -> null
-            ParkType.HOURLY_PAID -> {
-                val rate = checkNotNull(session.hourlyRate) {
-                    "Sessione HOURLY_PAID (id=${session.id}) senza hourlyRate"
-                }
-                val hours = (endTime - session.startTime) / 3_600_000.0
-                hours * rate
-            }
+            ParkType.HOURLY_PAID -> session.hourlyCostAt(endTime)
             ParkType.FIXED_TICKET -> {
                 checkNotNull(session.fixedCost) {
                     "Sessione FIXED_TICKET (id=${session.id}) senza fixedCost"
