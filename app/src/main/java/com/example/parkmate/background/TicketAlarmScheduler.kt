@@ -18,15 +18,24 @@ class TicketAlarmScheduler(private val context: Context) {
     fun canScheduleExact(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S || alarmManager.canScheduleExactAlarms()
 
-    // programma i due avvisi: quello anticipato e quello esatto
-    fun schedule(sessionId: Long, vehicleName: String, expiryTime: Long) {
+    fun currentExpiryWarningMinutes(): Int = getExpiryWarningMinutes(context)
+
+    fun updateExpiryWarningMinutes(minutes: Int) {
+        setExpiryWarningMinutes(context, minutes)
+    }
+
+    // programma i due avvisi: quello anticipato e quello esatto. Restituisce se quello
+    // anticipato è stato effettivamente programmato (false se la finestra è già passata)
+    fun schedule(sessionId: Long, vehicleName: String, expiryTime: Long): Boolean {
         val warningMinutes = getExpiryWarningMinutes(context)
         val warningTime = expiryTime - warningMinutes * 60_000L
+        val warningScheduled = warningTime > System.currentTimeMillis()
 
-        if (warningTime > System.currentTimeMillis()) {
+        if (warningScheduled) {
             scheduleOne(sessionId, vehicleName, warningTime, ALARM_KIND_WARNING)
         }
         scheduleOne(sessionId, vehicleName, expiryTime, ALARM_KIND_EXACT)
+        return warningScheduled
     }
 
     // cancella entrambi gli avvisi di sessionId. Non fa nulla se non erano programmati

@@ -23,6 +23,29 @@ class ParkingSessionRepository(
         parkingSessionDao.getActiveSessionsOnce()
     }
 
+    // richiamato dalla pagina impostazioni al salvataggio dell'anticipo: ricalcola gli alarm
+    // dei ticket aperti con il nuovo valore. vehicleNameOf evita una dipendenza diretta da
+    // VehicleRepository (che dipende già da questo Repository, per archiveVehicle).
+    // Restituisce quante sessioni hanno perso l'avviso anticipato perché la nuova finestra è
+    // già passata
+    suspend fun rescheduleOpenTicketAlarms(vehicleNameOf: suspend (Long) -> String): Int =
+        withContext(Dispatchers.IO) {
+            val openTickets = parkingSessionDao.getActiveSessionsOnce()
+                .filter { it.type == ParkType.FIXED_TICKET }
+
+            var suppressedCount = 0
+            for (session in openTickets) {
+                val expiryTime = checkNotNull(session.expiryTime) {
+                    "Sessione FIXED_TICKET (id=${session.id}) senza expiryTime"
+                }
+                val vehicleName = vehicleNameOf(session.vehicleId)
+                ticketAlarmScheduler.cancel(session.id)
+                val warningScheduled = ticketAlarmScheduler.schedule(session.id, vehicleName, expiryTime)
+                if (!warningScheduled) suppressedCount++
+            }
+            suppressedCount
+        }
+
     suspend fun startSession(
         vehicleId: Long,
         vehicleName: String,
