@@ -49,3 +49,11 @@ data class ParkingSession(
     val photoPath: String? = null,
     val note: String? = null
 )
+
+// costo di una sosta HOURLY_PAID fino a instant: usata sia per la stima dal vivo sia per il
+// costo finale alla chiusura, così non divergono
+fun ParkingSession.hourlyCostAt(instant: Long): Double {
+    val rate = checkNotNull(hourlyRate) { "Sessione HOURLY_PAID (id=$id) senza hourlyRate" }
+    val hours = (instant - startTime) / 3_600_000.0
+    return hours * rate
+}

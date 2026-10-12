@@ -2,6 +2,9 @@ package com.example.parkmate
 
 import android.app.Application
 import androidx.room.Room
+import com.example.parkmate.background.ActiveSessionReminderScheduler
+import com.example.parkmate.background.TicketAlarmScheduler
+import com.example.parkmate.background.createNotificationChannels
 import com.example.parkmate.data.local.ParkMateDatabase
 import com.example.parkmate.data.location.DeviceLocationProvider
 import com.example.parkmate.data.repository.ParkingSessionRepository
@@ -10,14 +13,29 @@ import com.example.parkmate.data.repository.VehicleRepository
 
 class ParkMateApplication : Application() {
 
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannels(this)
+        activeSessionReminderScheduler.enqueue()
+    }
+
     private val database: ParkMateDatabase by lazy {
         Room.databaseBuilder(this, ParkMateDatabase::class.java, "parkmate.db")
             .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
     }
 
+    // una sola istanza, come gli altri helper Android-specifici
+    val ticketAlarmScheduler: TicketAlarmScheduler by lazy {
+        TicketAlarmScheduler(this)
+    }
+
+    val activeSessionReminderScheduler: ActiveSessionReminderScheduler by lazy {
+        ActiveSessionReminderScheduler(this)
+    }
+
     val parkingSessionRepository: ParkingSessionRepository by lazy {
-        ParkingSessionRepository(database.parkingSessionDao(), database)
+        ParkingSessionRepository(database.parkingSessionDao(), database, ticketAlarmScheduler)
     }
 
     val vehicleRepository: VehicleRepository by lazy {

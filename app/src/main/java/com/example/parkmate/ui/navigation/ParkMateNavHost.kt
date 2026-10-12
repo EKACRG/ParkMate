@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Layers
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -18,6 +19,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,11 +36,14 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.parkmate.ParkMateViewModelFactory
+import com.example.parkmate.background.TicketAlarmScheduler
 import com.example.parkmate.data.location.DeviceLocationProvider
+import com.example.parkmate.ui.components.RequestNotificationPermissionOnce
 import com.example.parkmate.ui.history.HistoryScreen
 import com.example.parkmate.ui.map.MapScreen
 import com.example.parkmate.ui.map.SavedLocationsScreen
 import com.example.parkmate.ui.session.ActiveSessionScreen
+import com.example.parkmate.ui.settings.SettingsScreen
 import com.example.parkmate.ui.stats.StatsScreen
 import com.example.parkmate.ui.vehicles.VehiclesScreen
 
@@ -51,8 +56,10 @@ sealed class ParkMateDestination(val route: String) {
         object Stats : TopLevel("stats", "Statistiche", Icons.Default.BarChart)
     }
 
-    // schermata di dettaglio, pushate sopra la bottom bar, non incluse in bottomBarDestination
+    // schermate di dettaglio, pushate sopra la bottom bar, non incluse in bottomBarDestination
     object SavedLocations : ParkMateDestination("saved-locations")
+
+    object Settings : ParkMateDestination("settings")
 
     object Session : ParkMateDestination("session/{sessionId}") {
         const val ARG_SESSION_ID = "sessionId"
@@ -71,7 +78,8 @@ private val bottomBarDestinations = listOf(
 private data class TopBarConfig(
     val title: String,
     val onBack: (() -> Unit)? = null,
-    val showManageSavedLocationsAction: Boolean = false
+    val showManageSavedLocationsAction: Boolean = false,
+    val showSettingsAction: Boolean = false
 )
 
 private fun topBarConfig(
@@ -83,10 +91,17 @@ private fun topBarConfig(
     return when {
         topLevel != null -> TopBarConfig(
             title = topLevel.label,
-            showManageSavedLocationsAction = topLevel == ParkMateDestination.TopLevel.Map
+            showManageSavedLocationsAction = topLevel == ParkMateDestination.TopLevel.Map,
+            // solo sulle 4 destinazioni di primo livello: sulle rotte di dettaglio c'è già la
+            // freccia indietro, e da lì nessuno cerca le impostazioni
+            showSettingsAction = true
         )
         route == ParkMateDestination.SavedLocations.route -> TopBarConfig(
             title = "Saved location",
+            onBack = { navController.navigateUp() }
+        )
+        route == ParkMateDestination.Settings.route -> TopBarConfig(
+            title = "Impostazioni",
             onBack = { navController.navigateUp() }
         )
         route == ParkMateDestination.Session.route -> TopBarConfig(
@@ -101,7 +116,10 @@ private fun topBarConfig(
 @Composable
 fun ParkMateNavHost(
     viewModelFactory: ParkMateViewModelFactory,
-    deviceLocationProvider: DeviceLocationProvider
+    deviceLocationProvider: DeviceLocationProvider,
+    ticketAlarmScheduler: TicketAlarmScheduler,
+    openMapRequested: Boolean,
+    onOpenMapHandled: () -> Unit
 ) {
     // crea il controller di navigazione
     val navController = rememberNavController()
@@ -110,6 +128,21 @@ fun ParkMateNavHost(
     val currentDestination = currentBackStackEntry?.destination
     // layer delle saved location sulla mappa
     var showSavedLocations by rememberSaveable { mutableStateOf(true) }
+
+    // permesso di notifica, chiesto una sola volta all'avvio
+    RequestNotificationPermissionOnce()
+
+    // dalla notifica di riepilogo: salta sulla Mappa invece di restare sulla startDestination
+    LaunchedEffect(openMapRequested) {
+        if (openMapRequested) {
+            navController.navigate(ParkMateDestination.TopLevel.Map.route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+            onOpenMapHandled()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -131,6 +164,11 @@ fun ParkMateNavHost(
                         }
                         IconButton(onClick = { navController.navigate(ParkMateDestination.SavedLocations.route) }) {
                             Icon(Icons.Default.Place, contentDescription = "Gestisci saved location")
+                        }
+                    }
+                    if (config.showSettingsAction) {
+                        IconButton(onClick = { navController.navigate(ParkMateDestination.Settings.route) }) {
+                            Icon(Icons.Default.Settings, contentDescription = "Impostazioni")
                         }
                     }
                 }
@@ -174,6 +212,7 @@ fun ParkMateNavHost(
                 MapScreen(
                     viewModelFactory = viewModelFactory,
                     deviceLocationProvider = deviceLocationProvider,
+                    ticketAlarmScheduler = ticketAlarmScheduler,
                     showSavedLocations = showSavedLocations
                 )
             }
@@ -184,6 +223,9 @@ fun ParkMateNavHost(
             composable(ParkMateDestination.TopLevel.Stats.route) { StatsScreen() }
             composable(ParkMateDestination.SavedLocations.route) {
                 SavedLocationsScreen(viewModelFactory = viewModelFactory)
+            }
+            composable(ParkMateDestination.Settings.route) {
+                SettingsScreen(viewModelFactory = viewModelFactory)
             }
             composable(
                 route = ParkMateDestination.Session.route,
