@@ -91,6 +91,7 @@ fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
     if (showAddDialog) {
         VehicleFormDialog(
             initialVehicle = null,
+            otherVehicles = vehicles,
             onDismiss = { showAddDialog = false },
             onConfirm = { name, type, licensePlate ->
                 viewModel.addVehicle(Vehicle(name = name, type = type, licensePlate = licensePlate))
@@ -102,6 +103,7 @@ fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
     vehicleBeingEdited?.let { vehicle ->
         VehicleFormDialog(
             initialVehicle = vehicle,
+            otherVehicles = vehicles.filter { it.id != vehicle.id },
             onDismiss = { vehicleBeingEdited = null },
             onConfirm = { name, type, licensePlate ->
                 viewModel.updateVehicle(vehicle.copy(name = name, type = type, licensePlate = licensePlate))
@@ -153,6 +155,7 @@ private fun VehicleRow(vehicle: Vehicle, onEdit: () -> Unit, onArchive: () -> Un
 @Composable
 private fun VehicleFormDialog(
     initialVehicle: Vehicle?,
+    otherVehicles: List<Vehicle>,
     onDismiss: () -> Unit,
     onConfirm: (name: String, type: VehicleType, licensePlate: String?) -> Unit
 ) {
@@ -163,6 +166,11 @@ private fun VehicleFormDialog(
 
     // biciclette non hanno targa: il campo compare solo per gli altri tipi, ed è obbligatorio quando compare
     val requiresLicensePlate = type != VehicleType.BICYCLE
+
+    // otherVehicles esclude già se stesso (in caso di modifica): qui basta guardare se il nome
+    // o la targa coincidono con un ALTRO veicolo attivo
+    val duplicateName = otherVehicles.any { it.name.equals(name.trim(), ignoreCase = true) }
+    val duplicatePlate = otherVehicles.any { it.licensePlate == licensePlate }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -175,6 +183,9 @@ private fun VehicleFormDialog(
                     label = { Text("Nome") },
                     singleLine = true
                 )
+                if (duplicateName) {
+                    Text("Esiste già un veicolo con questo nome", color = MaterialTheme.colorScheme.error)
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 VehicleType.entries.forEach { option ->
                     Row(
@@ -195,6 +206,9 @@ private fun VehicleFormDialog(
                         label = { Text("Targa") },
                         singleLine = true
                     )
+                    if (duplicatePlate) {
+                        Text("Esiste già un veicolo con questa targa", color = MaterialTheme.colorScheme.error)
+                    }
                 }
             }
         },
@@ -203,7 +217,8 @@ private fun VehicleFormDialog(
                 onClick = {
                     onConfirm(name, type, if (requiresLicensePlate) licensePlate else null)
                 },
-                enabled = name.isNotBlank() && (!requiresLicensePlate || isValidLicensePlate(licensePlate))
+                enabled = name.isNotBlank() && !duplicateName &&
+                    (!requiresLicensePlate || (isValidLicensePlate(licensePlate) && !duplicatePlate))
             ) { Text("Salva") }
         },
         dismissButton = {

@@ -21,12 +21,34 @@ class VehicleRepository(
         vehicleDao.getById(vehicleId)
     }
 
+    // il controllo in UI (VehiclesScreen) dovrebbe già impedire di arrivare qui con un
+    // duplicato: check() fa crashare rumorosamente se succede comunque, non lo ignora in
+    // silenzio, stessa logica già usata per i campi tipo-specifici di ParkingSession
     suspend fun addVehicle(vehicle: Vehicle) = withContext(Dispatchers.IO) {
-        vehicleDao.insert(normalizeLicensePlate(vehicle))
+        val normalized = normalizeLicensePlate(vehicle)
+        database.withTransaction {
+            checkNoDuplicates(normalized)
+            vehicleDao.insert(normalized)
+        }
     }
 
     suspend fun updateVehicle(vehicle: Vehicle) = withContext(Dispatchers.IO) {
-        vehicleDao.update(normalizeLicensePlate(vehicle))
+        val normalized = normalizeLicensePlate(vehicle)
+        database.withTransaction {
+            checkNoDuplicates(normalized)
+            vehicleDao.update(normalized)
+        }
+    }
+
+    private suspend fun checkNoDuplicates(vehicle: Vehicle) {
+        check(!vehicleDao.hasActiveDuplicateName(vehicle.name, excludeId = vehicle.id)) {
+            "Vehicle name '${vehicle.name}' already in use by another active vehicle"
+        }
+        vehicle.licensePlate?.let { plate ->
+            check(!vehicleDao.hasActiveDuplicateLicensePlate(plate, excludeId = vehicle.id)) {
+                "License plate '$plate' already in use by another active vehicle"
+            }
+        }
     }
 
     // un veicolo archiviato non deve poter restare "parcheggiato"

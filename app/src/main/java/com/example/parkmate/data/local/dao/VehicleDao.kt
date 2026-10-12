@@ -20,4 +20,10 @@ interface VehicleDao {
 
     @Query("SELECT * FROM vehicle WHERE id = :id")
     suspend fun getById(id: Long): Vehicle?
+
+    @Query("SELECT EXISTS(SELECT 1 FROM vehicle WHERE isArchived = 0 AND id != :excludeId AND name = :name COLLATE NOCASE)")
+    suspend fun hasActiveDuplicateName(name: String, excludeId: Long): Boolean
+
+    @Query("SELECT EXISTS(SELECT 1 FROM vehicle WHERE isArchived = 0 AND id != :excludeId AND licensePlate = :licensePlate)")
+    suspend fun hasActiveDuplicateLicensePlate(licensePlate: String, excludeId: Long): Boolean
 }
