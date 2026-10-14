@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -43,9 +45,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.parkmate.ParkMateViewModelFactory
 import com.example.parkmate.data.local.entity.SavedLocation
 import com.example.parkmate.data.location.DeviceLocationProvider
+import com.example.parkmate.ui.components.BackgroundLocationPermissionRequester
 import com.example.parkmate.ui.components.ConfirmDialog
 import com.example.parkmate.ui.components.DEFAULT_MAP_POSITION
 import com.example.parkmate.ui.components.EmptyState
+import com.example.parkmate.ui.components.hasBackgroundLocationAccess
 import com.example.parkmate.ui.components.MINI_MAP_ZOOM
 import com.example.parkmate.ui.components.PermissionRequester
 import com.example.parkmate.ui.components.PositionMap
@@ -59,6 +63,8 @@ private val LOCATION_PERMISSIONS = listOf(
     Manifest.permission.ACCESS_FINE_LOCATION,
     Manifest.permission.ACCESS_COARSE_LOCATION
 )
+
+private const val GEOFENCE_RADIUS_METERS = 150f
 
 @Composable
 fun SavedLocationsScreen(
@@ -138,8 +144,15 @@ fun SavedLocationsScreen(
                 initialLocation = null,
                 gpsPosition = gpsPosition,
                 onDismiss = { showAddDialog = false },
-                onConfirm = { name, latitude, longitude ->
-                    viewModel.addSavedLocation(SavedLocation(name = name, latitude = latitude, longitude = longitude))
+                onConfirm = { name, latitude, longitude, geofenceEnabled ->
+                    viewModel.addSavedLocation(
+                        SavedLocation(
+                            name = name,
+                            latitude = latitude,
+                            longitude = longitude,
+                            geofenceRadiusMeters = if (geofenceEnabled) GEOFENCE_RADIUS_METERS else null
+                        )
+                    )
                     showAddDialog = false
                 }
             )
@@ -150,8 +163,15 @@ fun SavedLocationsScreen(
                 initialLocation = location,
                 gpsPosition = gpsPosition,
                 onDismiss = { locationBeingEdited = null },
-                onConfirm = { name, latitude, longitude ->
-                    viewModel.updateSavedLocation(location.copy(name = name, latitude = latitude, longitude = longitude))
+                onConfirm = { name, latitude, longitude, geofenceEnabled ->
+                    viewModel.updateSavedLocation(
+                        location.copy(
+                            name = name,
+                            latitude = latitude,
+                            longitude = longitude,
+                            geofenceRadiusMeters = if (geofenceEnabled) GEOFENCE_RADIUS_METERS else null
+                        )
+                    )
                     locationBeingEdited = null
                 }
             )
@@ -204,8 +224,9 @@ private fun SavedLocationFormDialog(
     initialLocation: SavedLocation?,
     gpsPosition: LatLng?,
     onDismiss: () -> Unit,
-    onConfirm: (name: String, latitude: Double, longitude: Double) -> Unit
+    onConfirm: (name: String, latitude: Double, longitude: Double, geofenceEnabled: Boolean) -> Unit
 ) {
+    val context = LocalContext.current
     var name by rememberSaveable(initialLocation?.id) { mutableStateOf(initialLocation?.name ?: "") }
     var pin by rememberSaveable(initialLocation?.id) {
         mutableStateOf(initialLocation?.let { LatLng(it.latitude, it.longitude) } ?: DEFAULT_MAP_POSITION)
@@ -213,6 +234,9 @@ private fun SavedLocationFormDialog(
     // vero da subito in modifica (le coordinate salvate non vanno mai sovrascritte dal GPS);
     // in creazione diventa vero alla prima azione dell'utente sulla mappa (tap o "Ricentra")
     var pinSetByUser by rememberSaveable(initialLocation?.id) { mutableStateOf(initialLocation != null) }
+    var geofenceEnabled by rememberSaveable(initialLocation?.id) {
+        mutableStateOf(initialLocation?.geofenceRadiusMeters != null)
+    }
 
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(pin, MINI_MAP_ZOOM)
@@ -226,44 +250,62 @@ private fun SavedLocationFormDialog(
         }
     }
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initialLocation == null) "Nuova saved location" else "Modifica saved location") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Nome") },
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                PositionMap(
-                    pin = pin,
-                    cameraPositionState = cameraPositionState,
-                    markerTitle = "Posizione del luogo",
-                    onMove = { moved ->
-                        pin = moved
-                        pinSetByUser = true
-                    },
-                    onRecenter = gpsPosition?.let { gps ->
-                        {
-                            pin = gps
+    BackgroundLocationPermissionRequester { requestBackgroundAccess ->
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text(if (initialLocation == null) "Nuova saved location" else "Modifica saved location") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Nome") },
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    PositionMap(
+                        pin = pin,
+                        cameraPositionState = cameraPositionState,
+                        markerTitle = "Posizione del luogo",
+                        onMove = { moved ->
+                            pin = moved
                             pinSetByUser = true
-                            cameraPositionState.position = CameraPosition.fromLatLngZoom(gps, MINI_MAP_ZOOM)
+                        },
+                        onRecenter = gpsPosition?.let { gps ->
+                            {
+                                pin = gps
+                                pinSetByUser = true
+                                cameraPositionState.position = CameraPosition.fromLatLngZoom(gps, MINI_MAP_ZOOM)
+                            }
                         }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(
+                            checked = geofenceEnabled,
+                            onCheckedChange = { checked ->
+                                geofenceEnabled = checked
+                                // il geofence vero e proprio non è ancora registrato (arriva con lo
+                                // Step 2): qui chiediamo solo il permesso, in anticipo
+                                if (checked && !hasBackgroundLocationAccess(context)) {
+                                    requestBackgroundAccess()
+                                }
+                            }
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Avvisami quando entro o esco da qui")
                     }
-                )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { onConfirm(name, pin.latitude, pin.longitude, geofenceEnabled) },
+                    enabled = name.isNotBlank()
+                ) { Text("Salva") }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Annulla") }
             }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(name, pin.latitude, pin.longitude) },
-                enabled = name.isNotBlank()
-            ) { Text("Salva") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annulla") }
-        }
-    )
+        )
+    }
 }
