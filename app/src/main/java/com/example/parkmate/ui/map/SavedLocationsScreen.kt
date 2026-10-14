@@ -1,5 +1,6 @@
 package com.example.parkmate.ui.map
 
+import android.Manifest
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -27,93 +27,148 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.parkmate.ParkMateViewModelFactory
 import com.example.parkmate.data.local.entity.SavedLocation
+import com.example.parkmate.data.location.DeviceLocationProvider
 import com.example.parkmate.ui.components.ConfirmDialog
+import com.example.parkmate.ui.components.DEFAULT_MAP_POSITION
 import com.example.parkmate.ui.components.EmptyState
+import com.example.parkmate.ui.components.MINI_MAP_ZOOM
+import com.example.parkmate.ui.components.PermissionRequester
+import com.example.parkmate.ui.components.PositionMap
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.rememberCameraPositionState
+import kotlinx.coroutines.launch
+
+// permessi per la posizione: stessa coppia e stesso schema di MapScreen
+private val LOCATION_PERMISSIONS = listOf(
+    Manifest.permission.ACCESS_FINE_LOCATION,
+    Manifest.permission.ACCESS_COARSE_LOCATION
+)
 
 @Composable
-fun SavedLocationsScreen(viewModelFactory: ParkMateViewModelFactory) {
+fun SavedLocationsScreen(
+    viewModelFactory: ParkMateViewModelFactory,
+    deviceLocationProvider: DeviceLocationProvider
+) {
     val viewModel: SavedLocationsViewModel = viewModel(factory = viewModelFactory)
     val locations by viewModel.savedLocations.observeAsState(emptyList())
+    val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     var locationBeingEdited by remember { mutableStateOf<SavedLocation?>(null) }
     var showAddDialog by remember { mutableStateOf(false) }
     var locationToDelete by remember { mutableStateOf<SavedLocation?>(null) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        if (locations.isEmpty()) {
-            EmptyState("Nessuna saved location. Tocca + per aggiungerne una")
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(locations, key = { it.id }) { location ->
-                    SavedLocationRow(
-                        location = location,
-                        onEdit = { locationBeingEdited = location },
-                        onDelete = { locationToDelete = location }
-                    )
+    // posizione GPS letta all'apertura del form, come in MapScreen
+    var gpsPosition by remember { mutableStateOf<LatLng?>(null) }
+
+    PermissionRequester(
+        permissions = LOCATION_PERMISSIONS,
+        onResult = { grants ->
+            if (grants.values.any { it }) {
+                scope.launch {
+                    val location = deviceLocationProvider.getCurrentLocation()
+                    if (location != null) {
+                        gpsPosition = LatLng(location.latitude, location.longitude)
+                    }
                 }
             }
+        },
+        rationaleTitle = "Serve la posizione",
+        rationaleText = "Per posizionare un luogo salvato sulla tua posizione attuale serve il GPS. " +
+            "Puoi comunque indicare il punto a mano sulla mappa.",
+        settingsTitle = "Permesso di posizione negato",
+        settingsText = "Il permesso è stato negato in modo permanente. Puoi concederlo nelle " +
+            "impostazioni dell'app, oppure indicare il punto a mano sulla mappa."
+    ) { request ->
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (locations.isEmpty()) {
+                EmptyState("Nessuna saved location. Tocca + per aggiungerne una")
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(locations, key = { it.id }) { location ->
+                        SavedLocationRow(
+                            location = location,
+                            onEdit = {
+                                gpsPosition = null
+                                locationBeingEdited = location
+                                request()
+                            },
+                            onDelete = { locationToDelete = location }
+                        )
+                    }
+                }
+            }
+
+            FloatingActionButton(
+                onClick = {
+                    gpsPosition = null
+                    showAddDialog = true
+                    request()
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Default.Add, contentDescription = "Aggiungi saved location")
+            }
         }
 
-        FloatingActionButton(
-            onClick = { showAddDialog = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Aggiungi saved location")
+        if (showAddDialog) {
+            SavedLocationFormDialog(
+                initialLocation = null,
+                gpsPosition = gpsPosition,
+                onDismiss = { showAddDialog = false },
+                onConfirm = { name, latitude, longitude ->
+                    viewModel.addSavedLocation(SavedLocation(name = name, latitude = latitude, longitude = longitude))
+                    showAddDialog = false
+                }
+            )
         }
-    }
 
-    if (showAddDialog) {
-        SavedLocationFormDialog(
-            initialLocation = null,
-            onDismiss = { showAddDialog = false },
-            onConfirm = { name, latitude, longitude ->
-                viewModel.addSavedLocation(SavedLocation(name = name, latitude = latitude, longitude = longitude))
-                showAddDialog = false
-            }
-        )
-    }
+        locationBeingEdited?.let { location ->
+            SavedLocationFormDialog(
+                initialLocation = location,
+                gpsPosition = gpsPosition,
+                onDismiss = { locationBeingEdited = null },
+                onConfirm = { name, latitude, longitude ->
+                    viewModel.updateSavedLocation(location.copy(name = name, latitude = latitude, longitude = longitude))
+                    locationBeingEdited = null
+                }
+            )
+        }
 
-    locationBeingEdited?.let { location ->
-        SavedLocationFormDialog(
-            initialLocation = location,
-            onDismiss = { locationBeingEdited = null },
-            onConfirm = { name, latitude, longitude ->
-                viewModel.updateSavedLocation(location.copy(name = name, latitude = latitude, longitude = longitude))
-                locationBeingEdited = null
-            }
-        )
-    }
-
-    locationToDelete?.let { location ->
-        ConfirmDialog(
-            title = "Eliminare saved location?",
-            text = "\"${location.name}\" verrà eliminata definitivamente.",
-            confirmLabel = "Elimina",
-            onConfirm = {
-                viewModel.deleteSavedLocation(location)
-                locationToDelete = null
-            },
-            onDismiss = { locationToDelete = null }
-        )
+        locationToDelete?.let { location ->
+            ConfirmDialog(
+                title = "Eliminare saved location?",
+                text = "\"${location.name}\" verrà eliminata definitivamente.",
+                confirmLabel = "Elimina",
+                onConfirm = {
+                    viewModel.deleteSavedLocation(location)
+                    locationToDelete = null
+                },
+                onDismiss = { locationToDelete = null }
+            )
+        }
     }
 }
 
@@ -147,18 +202,29 @@ private fun SavedLocationRow(location: SavedLocation, onEdit: () -> Unit, onDele
 @Composable
 private fun SavedLocationFormDialog(
     initialLocation: SavedLocation?,
+    gpsPosition: LatLng?,
     onDismiss: () -> Unit,
     onConfirm: (name: String, latitude: Double, longitude: Double) -> Unit
 ) {
     var name by rememberSaveable(initialLocation?.id) { mutableStateOf(initialLocation?.name ?: "") }
-    var latitudeText by rememberSaveable(initialLocation?.id) { mutableStateOf(initialLocation?.latitude?.toString() ?: "") }
-    var longitudeText by rememberSaveable(initialLocation?.id) { mutableStateOf(initialLocation?.longitude?.toString() ?: "") }
+    var pin by rememberSaveable(initialLocation?.id) {
+        mutableStateOf(initialLocation?.let { LatLng(it.latitude, it.longitude) } ?: DEFAULT_MAP_POSITION)
+    }
+    // vero da subito in modifica (le coordinate salvate non vanno mai sovrascritte dal GPS);
+    // in creazione diventa vero alla prima azione dell'utente sulla mappa (tap o "Ricentra")
+    var pinSetByUser by rememberSaveable(initialLocation?.id) { mutableStateOf(initialLocation != null) }
 
-    val latitude = latitudeText.toDoubleOrNull()
-    val longitude = longitudeText.toDoubleOrNull()
-    val isValid = name.isNotBlank() &&
-            latitude != null && latitude in -90.0..90.00 &&
-            longitude != null && longitude in -180.0..180.0
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(pin, MINI_MAP_ZOOM)
+    }
+
+    // se il GPS si carica dopo l'apertura e l'utente non ha ancora toccato la mappa, centra lì
+    LaunchedEffect(gpsPosition) {
+        if (!pinSetByUser && gpsPosition != null) {
+            pin = gpsPosition
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(gpsPosition, MINI_MAP_ZOOM)
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -172,31 +238,28 @@ private fun SavedLocationFormDialog(
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = latitudeText,
-                    onValueChange = { latitudeText = it },
-                    label = { Text("Latitudine") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = longitudeText,
-                    onValueChange = { longitudeText = it },
-                    label = { Text("Longitudine") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
+                PositionMap(
+                    pin = pin,
+                    cameraPositionState = cameraPositionState,
+                    markerTitle = "Posizione del luogo",
+                    onMove = { moved ->
+                        pin = moved
+                        pinSetByUser = true
+                    },
+                    onRecenter = gpsPosition?.let { gps ->
+                        {
+                            pin = gps
+                            pinSetByUser = true
+                            cameraPositionState.position = CameraPosition.fromLatLngZoom(gps, MINI_MAP_ZOOM)
+                        }
+                    }
                 )
             }
         },
         confirmButton = {
             TextButton(
-                onClick = {
-                    if (latitude != null && longitude != null) {
-                        onConfirm(name, latitude, longitude)
-                    }
-                },
-                enabled = isValid
+                onClick = { onConfirm(name, pin.latitude, pin.longitude) },
+                enabled = name.isNotBlank()
             ) { Text("Salva") }
         },
         dismissButton = {

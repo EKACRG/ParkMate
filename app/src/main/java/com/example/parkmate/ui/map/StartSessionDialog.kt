@@ -21,7 +21,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -41,20 +40,15 @@ import androidx.compose.ui.unit.dp
 import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.SavedLocation
 import com.example.parkmate.data.local.entity.Vehicle
+import com.example.parkmate.ui.components.MINI_MAP_HEIGHT
+import com.example.parkmate.ui.components.MINI_MAP_ZOOM
+import com.example.parkmate.ui.components.PositionMap
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.CameraPositionState
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
-import com.google.maps.android.compose.rememberUpdatedMarkerState
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
-
-// altezza fissa della mini-mappa: se il contenuto supera lo schermo, il modale scorre
-private val MAP_HEIGHT = 180.dp
-private const val MAP_ZOOM = 16f
 
 // dati inseriti nel modale. latitude e longitude sono il punto finale: la saved location scelta
 // oppure il marker spostato sulla mini-mappa (solo con sorgente GPS).
@@ -126,6 +120,9 @@ fun StartSessionDialog(
     // marker sulla mini-mappa, salvato come due Double perché LatLng non è salvabile con rememberSaveable
     var pinLat by rememberSaveable { mutableStateOf<Double?>(null) }
     var pinLng by rememberSaveable { mutableStateOf<Double?>(null) }
+    // true alla prima azione dell'utente sulla mappa (tap o "Ricentra"): da quel momento il GPS,
+    // se arriva in ritardo, non deve più sovrascrivere una posizione già scelta a mano
+    var pinSetByUser by rememberSaveable { mutableStateOf(false) }
     // modalità scelta nel primo menu: false = GPS (con mini-mappa), true = "Saved Locations" (con il secondo menu)
     var savedMode by rememberSaveable { mutableStateOf(false) }
 
@@ -137,10 +134,10 @@ fun StartSessionDialog(
     // con sorgente GPS il marker parte dalla posizione letta all'apertura e la mappa la centra
     LaunchedEffect(gpsPosition, savedMode) {
         val position = gpsPosition ?: return@LaunchedEffect
-        if (!savedMode) {
+        if (!savedMode && !pinSetByUser) {
             pinLat = position.latitude
             pinLng = position.longitude
-            cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MAP_ZOOM)
+            cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MINI_MAP_ZOOM)
         }
     }
 
@@ -169,7 +166,13 @@ fun StartSessionDialog(
         onDismissRequest = onDismiss,
         title = { Text("Avvia sosta") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            // lo scroll si disattiva mentre la mappa si muove, altrimenti i due gesti si contendono il trascinamento
+            Column(
+                modifier = Modifier.verticalScroll(
+                    rememberScrollState(),
+                    enabled = !cameraPositionState.isMoving
+                )
+            ) {
                 // messaggi in alto: compaiono solo quando servono
                 if (hasActiveSession) {
                     Text(
@@ -311,15 +314,18 @@ fun StartSessionDialog(
                         else -> PositionMap(
                             pin = gpsPin,
                             cameraPositionState = cameraPositionState,
+                            markerTitle = "Posizione della sosta",
                             onMove = { moved ->
                                 pinLat = moved.latitude
                                 pinLng = moved.longitude
+                                pinSetByUser = true
                             },
-                            onRecenter = {
-                                gpsPosition?.let { position ->
+                            onRecenter = gpsPosition?.let { position ->
+                                {
                                     pinLat = position.latitude
                                     pinLng = position.longitude
-                                    cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MAP_ZOOM)
+                                    pinSetByUser = true
+                                    cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MINI_MAP_ZOOM)
                                 }
                             }
                         )
@@ -355,46 +361,13 @@ fun StartSessionDialog(
     )
 }
 
-// mini-mappa con zoom e pan; il tap sposta il marker; "Ricentra" è sovrapposto in basso a destra
-@Composable
-private fun PositionMap(
-    pin: LatLng,
-    cameraPositionState: CameraPositionState,
-    onMove: (LatLng) -> Unit,
-    onRecenter: () -> Unit
-) {
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .height(MAP_HEIGHT)
-    ) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            onMapClick = onMove
-        ) {
-            Marker(
-                state = rememberUpdatedMarkerState(position = pin),
-                title = "Posizione della sosta"
-            )
-        }
-        FilledTonalButton(
-            onClick = onRecenter,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(8.dp)
-        ) {
-            Text("Ricentra sul GPS")
-        }
-    }
-}
-
 // in attesa della posizione GPS: uno spinner; se la lettura fallisce, il messaggio è in cima al modale
 @Composable
 private fun LoadingBox(loading: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(MAP_HEIGHT),
+            .height(MINI_MAP_HEIGHT),
         contentAlignment = Alignment.Center
     ) {
         if (loading) CircularProgressIndicator()
@@ -407,7 +380,7 @@ private fun PermissionDeniedBox(onOpenSettings: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .height(MAP_HEIGHT)
+            .height(MINI_MAP_HEIGHT)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(12.dp),
         verticalArrangement = Arrangement.Center,

@@ -7,8 +7,9 @@ import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.DirectionsCar
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Layers
+import androidx.compose.material.icons.filled.LocationOff
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.NavigationBar
@@ -160,10 +161,13 @@ fun ParkMateNavHost(
                 actions = {
                     if (config.showManageSavedLocationsAction) {
                         IconButton(onClick = { showSavedLocations = !showSavedLocations }) {
-                            Icon(Icons.Default.Layers, contentDescription = "Mostra o nascondi saved location")
+                            Icon(
+                                if (showSavedLocations) Icons.Default.LocationOn else Icons.Default.LocationOff,
+                                contentDescription = if (showSavedLocations) "Nascondi saved location" else "Mostra saved location"
+                            )
                         }
                         IconButton(onClick = { navController.navigate(ParkMateDestination.SavedLocations.route) }) {
-                            Icon(Icons.Default.Place, contentDescription = "Gestisci saved location")
+                            Icon(Icons.Default.Layers, contentDescription = "Gestisci saved location")
                         }
                     }
                     if (config.showSettingsAction) {
@@ -222,7 +226,10 @@ fun ParkMateNavHost(
             composable(ParkMateDestination.TopLevel.History.route) { HistoryScreen() }
             composable(ParkMateDestination.TopLevel.Stats.route) { StatsScreen() }
             composable(ParkMateDestination.SavedLocations.route) {
-                SavedLocationsScreen(viewModelFactory = viewModelFactory)
+                SavedLocationsScreen(
+                    viewModelFactory = viewModelFactory,
+                    deviceLocationProvider = deviceLocationProvider
+                )
             }
             composable(ParkMateDestination.Settings.route) {
                 SettingsScreen(viewModelFactory = viewModelFactory)
