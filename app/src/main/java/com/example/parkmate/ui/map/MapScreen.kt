@@ -1,6 +1,5 @@
 package com.example.parkmate.ui.map
 
-import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
@@ -17,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,8 +28,7 @@ import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.ParkingSession
 import com.example.parkmate.data.location.DeviceLocationProvider
 import com.example.parkmate.ui.components.ConfirmDialog
-import com.example.parkmate.ui.components.PermissionRequester
-import com.example.parkmate.ui.components.openAppSettings
+import com.example.parkmate.ui.components.DEFAULT_MAP_POSITION
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -40,20 +37,10 @@ import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberUpdatedMarkerState
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.time.Duration.Companion.milliseconds
-
-// centro iniziale della mappa, finché non c'è la posizione GPS
-private val BOLOGNA = LatLng(44.4949, 11.3426)
-
-// permessi per la posizione: il sistema li chiede insieme, e l'utente può scegliere quello preciso
-private val LOCATION_PERMISSIONS = listOf(
-    Manifest.permission.ACCESS_FINE_LOCATION,
-    Manifest.permission.ACCESS_COARSE_LOCATION
-)
 
 // ora di inizio come "HH:mm", nel fuso orario del telefono
 private val START_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
@@ -81,17 +68,12 @@ fun MapScreen(
     val savedLocations by viewModel.savedLocations.observeAsState(emptyList())
     val vehicles by viewModel.vehicles.observeAsState(emptyList())
     val vehicleNames = vehicles.associate { it.id to it.name }
-    val scope = rememberCoroutineScope()
     val cameraPositionState = rememberCameraPositionState {
-        position = CameraPosition.fromLatLngZoom(BOLOGNA, 13f)
+        position = CameraPosition.fromLatLngZoom(DEFAULT_MAP_POSITION, 13f)
     }
 
     val context = LocalContext.current
     var showStartDialog by remember { mutableStateOf(false) }
-    var startError by remember { mutableStateOf<String?>(null) }
-    // posizione gps letta all'apertura del modale
-    var gpsPosition by remember { mutableStateOf<LatLng?>(null) }
-    var gpsDenied by remember { mutableStateOf(false) }
     // sosta selezionata con il tap sul marker: apre la scheda di dettaglio
     var selectedSession by remember { mutableStateOf<ParkingSession?>(null) }
     // per richiedere accesso agli alarm esatti
@@ -120,7 +102,6 @@ fun MapScreen(
             expiryTime = input.expiryTime
         )
         showStartDialog = false
-        startError = null
 
         // se ho appena avviato un ticket, e in questo momento l'app non ha l'accesso esatto, mostra l'invito
         if (input.type == ParkType.FIXED_TICKET && !ticketAlarmScheduler.canScheduleExact()) {
@@ -128,131 +109,94 @@ fun MapScreen(
         }
     }
 
-    PermissionRequester(
-        permissions = LOCATION_PERMISSIONS,
-        onResult = { grants ->
-            if (grants.values.any { it }) {
-                gpsDenied = false
-                // la posizione è una chiamata sospesa quindi la lanciamo in una coroutine
-                scope.launch {
-                    val location = deviceLocationProvider.getCurrentLocation()
-                    if (location != null) {
-                        gpsPosition = LatLng(location.latitude, location.longitude)
+    Box(modifier = Modifier.fillMaxSize()) {
+        GoogleMap(
+            modifier = Modifier.fillMaxSize(),
+            cameraPositionState = cameraPositionState
+        ) {
+            // un marker per ogni sosta attiva
+            activeSessions.forEach { session ->
+                Marker(
+                    state = rememberUpdatedMarkerState(
+                        position = LatLng(session.latitude, session.longitude)
+                    ),
+                    title = markerTitle(session, vehicleNames),
+                    // arancione per i ticket scaduti ma non chiusi (overstay), rosso di default per il resto
+                    icon = if (isExpiredTicket(session, now)) {
+                        BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
                     } else {
-                        startError = "Posizione GPS non disponibile. Riprova o scegli una saved location."
+                        null
+                    },
+                    // true consuma il tocco: niente centratura automatica né InfoWindow di default,
+                    // apriamo la nostra scheda al suo posto
+                    onClick = {
+                        selectedSession = session
+                        true
                     }
-                }
-            } else {
-                gpsDenied = true
+                )
             }
-        },
-        rationaleTitle = "Serve la posizione",
-        rationaleText = "Per registrare dove hai parcheggiato serve la posizione attuale. In alternativa puoi scegliere una saved location.",
-        settingsTitle = "Permesso di posizione negato",
-        settingsText = "Il permesso è stato negato in modo permanente. Puoi concederlo nelle impostazioni dell'app, oppure scegliere una saved location."
-    ) { request ->
-        Box(modifier = Modifier.fillMaxSize()) {
-            GoogleMap(
-                modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cameraPositionState
-            ) {
-                // un marker per ogni sosta attiva
-                activeSessions.forEach { session ->
+
+            // layer separato delle saved location: azzurro, per distinguerle dalle soste attive (rosse)
+            if (showSavedLocations) {
+                savedLocations.forEach { location ->
                     Marker(
                         state = rememberUpdatedMarkerState(
-                            position = LatLng(session.latitude, session.longitude)
+                            position = LatLng(location.latitude, location.longitude)
                         ),
-                        title = markerTitle(session, vehicleNames),
-                        // arancione per i ticket scaduti ma non chiusi (overstay), rosso di default per il resto
-                        icon = if (isExpiredTicket(session, now)) {
-                            BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE)
-                        } else {
-                            null
-                        },
-                        // true consuma il tocco: niente centratura automatica né InfoWindow di default,
-                        // apriamo la nostra scheda al suo posto
-                        onClick = {
-                            selectedSession = session
-                            true
-                        }
+                        title = location.name,
+                        icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
                     )
                 }
-
-                // layer separato delle saved location: azzurro, per distinguerle dalle soste attive (rosse)
-                if (showSavedLocations) {
-                    savedLocations.forEach { location ->
-                        Marker(
-                            state = rememberUpdatedMarkerState(
-                                position = LatLng(location.latitude, location.longitude)
-                            ),
-                            title = location.name,
-                            icon = BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)
-                        )
-                    }
-                }
-            }
-
-            FloatingActionButton(
-                onClick = {
-                    // azzeriamo prima di chiedere il permesso, così nessun valore della volta precedente sopravvive
-                    startError = null
-                    gpsPosition = null
-                    gpsDenied = false
-                    showStartDialog = true
-                    request()
-                },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp)
-            ) {
-                Icon(Icons.Default.LocalParking, contentDescription = "Avvia sosta")
             }
         }
 
-        if (showStartDialog) {
-            StartSessionDialog(
-                vehicles = vehicles,
-                activeVehicleIds = activeSessions.map { it.vehicleId }.toSet(),
-                savedLocations = savedLocations,
-                gpsPosition = gpsPosition,
-                gpsDenied = gpsDenied,
-                errorMessage = startError,
-                onDismiss = {
-                    showStartDialog = false
-                    startError = null
-                },
-                onOpenSettings = { context.openAppSettings() },
-                onConfirm = { input -> start(input) }
-            )
+        FloatingActionButton(
+            onClick = { showStartDialog = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+        ) {
+            Icon(Icons.Default.LocalParking, contentDescription = "Avvia sosta")
         }
+    }
 
-        selectedSession?.let { session ->
-            SessionDetailsDialog(
-                session = session,
-                vehicleName = vehicleNames[session.vehicleId] ?: "Veicolo",
-                onDismiss = { selectedSession = null },
-                onEndSession = {
-                    viewModel.endSession(session.id)
-                    selectedSession = null
+    if (showStartDialog) {
+        StartSessionDialog(
+            vehicles = vehicles,
+            activeVehicleIds = activeSessions.map { it.vehicleId }.toSet(),
+            savedLocations = savedLocations,
+            deviceLocationProvider = deviceLocationProvider,
+            onDismiss = { showStartDialog = false },
+            onConfirm = { input -> start(input) }
+        )
+    }
+
+    selectedSession?.let { session ->
+        SessionDetailsDialog(
+            session = session,
+            vehicleName = vehicleNames[session.vehicleId] ?: "Veicolo",
+            onDismiss = { selectedSession = null },
+            onEndSession = {
+                viewModel.endSession(session.id)
+                selectedSession = null
+            }
+        )
+    }
+
+    if (showExactAlarmPrompt) {
+        ConfirmDialog(
+            title = "Avviso di scadenza più preciso",
+            text = "Concedi l'accesso agli allarmi esatti nelle impostazioni per essere " +
+                "avvisato esattamente al momento della scadenza del ticket. Senza, l'avviso " +
+                "potrebbe arrivare qualche minuto più tardi.",
+            confirmLabel = "Apri impostazioni",
+            onConfirm = {
+                showExactAlarmPrompt = false
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
                 }
-            )
-        }
-
-        if (showExactAlarmPrompt) {
-            ConfirmDialog(
-                title = "Avviso di scadenza più preciso",
-                text = "Concedi l'accesso agli allarmi esatti nelle impostazioni per essere " +
-                    "avvisato esattamente al momento della scadenza del ticket. Senza, l'avviso " +
-                    "potrebbe arrivare qualche minuto più tardi.",
-                confirmLabel = "Apri impostazioni",
-                onConfirm = {
-                    showExactAlarmPrompt = false
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
-                    }
-                },
-                onDismiss = { showExactAlarmPrompt = false }
-            )
-        }
+            },
+            onDismiss = { showExactAlarmPrompt = false }
+        )
     }
 }

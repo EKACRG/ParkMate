@@ -24,15 +24,15 @@ val MINI_MAP_HEIGHT = 180.dp
 const val MINI_MAP_ZOOM = 16f
 
 // mini-mappa con zoom e pan, condivisa tra il modale di avvio sosta e il form delle saved
-// location. Se la posizione GPS non è disponibile (permesso negato),
-// il pulsante "Ricentra" non ha senso e non deve comparire.
+// location. onRecenter è sempre presente: al tap, chi la usa chiede il permesso di posizione
+// se serve e poi centra lì — la mappa stessa non sa nulla di permessi
 @Composable
 fun PositionMap(
     pin: LatLng,
     cameraPositionState: CameraPositionState,
     markerTitle: String,
     onMove: (LatLng) -> Unit,
-    onRecenter: (() -> Unit)?
+    onRecenter: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -49,15 +49,13 @@ fun PositionMap(
                 title = markerTitle
             )
         }
-        if (onRecenter != null) {
-            FilledTonalButton(
-                onClick = onRecenter,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(8.dp)
-            ) {
-                Text("Ricentra sul GPS")
-            }
+        FilledTonalButton(
+            onClick = onRecenter,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(8.dp)
+        ) {
+            Text("Ricentra sul GPS")
         }
     }
 }
