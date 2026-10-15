@@ -23,6 +23,10 @@ interface SavedLocationDao {
     @Query("SELECT * FROM saved_location ORDER BY name")
     fun getAll(): LiveData<List<SavedLocation>>
 
+    // per la ri-registrazione dei geofence all'avvio dell'app, non osservabile
+    @Query("SELECT * FROM saved_location ORDER BY name")
+    suspend fun getAllOnce(): List<SavedLocation>
+
     @Query("SELECT * FROM saved_location WHERE id = :id")
     suspend fun getById(id: Long): SavedLocation?
 }
