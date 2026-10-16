@@ -42,11 +42,11 @@ class VehicleRepository(
 
     private suspend fun checkNoDuplicates(vehicle: Vehicle) {
         check(!vehicleDao.hasActiveDuplicateName(vehicle.name, excludeId = vehicle.id)) {
-            "Vehicle name '${vehicle.name}' already in use by another active vehicle"
+            "Nome veicolo '${vehicle.name}' già in uso da un altro veicolo attivo"
         }
         vehicle.licensePlate?.let { plate ->
             check(!vehicleDao.hasActiveDuplicateLicensePlate(plate, excludeId = vehicle.id)) {
-                "License plate '$plate' already in use by another active vehicle"
+                "Targa '$plate' già in uso da un altro veicolo attivo"
             }
         }
     }

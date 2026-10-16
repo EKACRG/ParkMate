@@ -34,7 +34,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             _suppressedWarningCount.value = parkingSessionRepository.rescheduleOpenTicketAlarms { vehicleId ->
                 checkNotNull(vehicleRepository.getById(vehicleId)) {
-                    "Vehicle $vehicleId must exist for an active ParkingSession (FK RESTRICT)"
+                    "Il veicolo $vehicleId deve esistere per una ParkingSession attiva (FK RESTRICT)"
                 }.name
             }
         }
