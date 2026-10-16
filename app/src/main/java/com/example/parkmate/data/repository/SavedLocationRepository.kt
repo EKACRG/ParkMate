@@ -18,6 +18,11 @@ class SavedLocationRepository(
 
     val savedLocations: LiveData<List<SavedLocation>> = savedLocationDao.getAll()
 
+    // per il receiver di geofence, che legge il nome del luogo per il testo della notifica
+    suspend fun getById(id: Long): SavedLocation? = withContext(Dispatchers.IO) {
+        savedLocationDao.getById(id)
+    }
+
     // per la ri-registrazione dei geofence all'avvio dell'app
     suspend fun getGeofencedLocationsSnapshot(): List<SavedLocation> = withContext(Dispatchers.IO) {
         savedLocationDao.getAllOnce().filter { it.geofenceRadiusMeters != null }

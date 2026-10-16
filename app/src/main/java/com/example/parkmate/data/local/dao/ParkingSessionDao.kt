@@ -25,6 +25,10 @@ interface ParkingSessionDao {
     @Query("SELECT * FROM parking_session WHERE vehicleId = :vehicleId AND endTime IS NULL LIMIT 1")
     suspend fun getActiveSessionForVehicle(vehicleId: Long): ParkingSession?
 
+    // per il receiver di geofence, che deve decidere se proporre di terminare una sosta all'uscita
+    @Query("SELECT * FROM parking_session WHERE savedLocationId = :savedLocationId AND endTime IS NULL")
+    suspend fun getActiveSessionsForSavedLocationOnce(savedLocationId: Long): List<ParkingSession>
+
     @Query("SELECT * FROM parking_session WHERE id = :id")
     suspend fun getById(id: Long): ParkingSession?
 

@@ -23,6 +23,12 @@ class ParkingSessionRepository(
         parkingSessionDao.getActiveSessionsOnce()
     }
 
+    // per il receiver di geofence, che deve decidere se proporre di terminare una sosta all'uscita
+    suspend fun getActiveSessionsForSavedLocationSnapshot(savedLocationId: Long): List<ParkingSession> =
+        withContext(Dispatchers.IO) {
+            parkingSessionDao.getActiveSessionsForSavedLocationOnce(savedLocationId)
+        }
+
     // richiamato dalla pagina impostazioni al salvataggio dell'anticipo: ricalcola gli alarm
     // dei ticket aperti con il nuovo valore. vehicleNameOf evita una dipendenza diretta da
     // VehicleRepository (che dipende già da questo Repository, per archiveVehicle).

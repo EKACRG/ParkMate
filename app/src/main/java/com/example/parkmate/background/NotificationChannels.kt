@@ -7,8 +7,9 @@ import androidx.core.app.NotificationManagerCompat
 // id dei canali come costanti: li useranno anche chi costruisce le notifiche vere (alarm, worker)
 const val NOTIFICATION_CHANNEL_EXPIRY = "expiry"
 const val NOTIFICATION_CHANNEL_REMINDERS = "reminders"
+const val NOTIFICATION_CHANNEL_GEOFENCE = "geofence"
 
-// crea i due canali di notifica
+// crea i tre canali di notifica
 fun createNotificationChannels(context: Context) {
     val manager = NotificationManagerCompat.from(context)
 
@@ -28,5 +29,13 @@ fun createNotificationChannels(context: Context) {
         .setDescription("Riepilogo periodico delle soste attive")
         .build()
 
-    manager.createNotificationChannelsCompat(listOf(expiryChannel, remindersChannel))
+    val geofenceChannel = NotificationChannelCompat.Builder(
+        NOTIFICATION_CHANNEL_GEOFENCE,
+        NotificationManagerCompat.IMPORTANCE_HIGH
+    )
+        .setName("Ingresso o uscita da un luogo salvato")
+        .setDescription("Proposta di avviare o terminare una sosta entrando o uscendo da un luogo salvato con geofence")
+        .build()
+
+    manager.createNotificationChannelsCompat(listOf(expiryChannel, remindersChannel, geofenceChannel))
 }
