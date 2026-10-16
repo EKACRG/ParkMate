@@ -120,7 +120,10 @@ fun ParkMateNavHost(
     deviceLocationProvider: DeviceLocationProvider,
     ticketAlarmScheduler: TicketAlarmScheduler,
     openMapRequested: Boolean,
-    onOpenMapHandled: () -> Unit
+    onOpenMapHandled: () -> Unit,
+    geofenceSavedLocationId: Long?,
+    geofenceTransition: Int?,
+    onGeofenceHandled: () -> Unit
 ) {
     // crea il controller di navigazione
     val navController = rememberNavController()
@@ -133,14 +136,16 @@ fun ParkMateNavHost(
     // permesso di notifica, chiesto una sola volta all'avvio
     RequestNotificationPermissionOnce()
 
-    // dalla notifica di riepilogo: salta sulla Mappa invece di restare sulla startDestination
+    // dalla notifica di riepilogo o di geofence: entrando dall'esterno, azzera lo stack e apre
+    // la Mappa da sola, invece del solito scambio tra le tab della bottom bar
     LaunchedEffect(openMapRequested) {
         if (openMapRequested) {
-            navController.navigate(ParkMateDestination.TopLevel.Map.route) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                launchSingleTop = true
-                restoreState = true
+            // svuota lo stack una voce alla volta, invece di affidarsi a popUpTo: si ferma da
+            // sola quando resta solo la destinazione di partenza, senza poterla mai togliere
+            while (navController.popBackStack()) {
+                // continua finché c'è qualcosa da togliere
             }
+            navController.navigate(ParkMateDestination.TopLevel.Map.route)
             onOpenMapHandled()
         }
     }
@@ -217,7 +222,10 @@ fun ParkMateNavHost(
                     viewModelFactory = viewModelFactory,
                     deviceLocationProvider = deviceLocationProvider,
                     ticketAlarmScheduler = ticketAlarmScheduler,
-                    showSavedLocations = showSavedLocations
+                    showSavedLocations = showSavedLocations,
+                    geofenceSavedLocationId = geofenceSavedLocationId,
+                    geofenceTransition = geofenceTransition,
+                    onGeofenceHandled = onGeofenceHandled
                 )
             }
             composable(ParkMateDestination.TopLevel.Vehicles.route) {

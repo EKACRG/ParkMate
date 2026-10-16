@@ -29,6 +29,7 @@ import com.example.parkmate.data.local.entity.ParkingSession
 import com.example.parkmate.data.location.DeviceLocationProvider
 import com.example.parkmate.ui.components.ConfirmDialog
 import com.example.parkmate.ui.components.DEFAULT_MAP_POSITION
+import com.google.android.gms.location.Geofence
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -61,7 +62,10 @@ fun MapScreen(
     viewModelFactory: ParkMateViewModelFactory,
     deviceLocationProvider: DeviceLocationProvider,
     ticketAlarmScheduler: TicketAlarmScheduler,
-    showSavedLocations: Boolean
+    showSavedLocations: Boolean,
+    geofenceSavedLocationId: Long?,
+    geofenceTransition: Int?,
+    onGeofenceHandled: () -> Unit
 ) {
     val viewModel: MapViewModel = viewModel(factory = viewModelFactory)
     val activeSessions by viewModel.activeSessions.observeAsState(emptyList())
@@ -74,10 +78,33 @@ fun MapScreen(
 
     val context = LocalContext.current
     var showStartDialog by remember { mutableStateOf(false) }
+    // saved location da preselezionare quando il modale si apre da una notifica di ingresso
+    var preselectedSavedLocationId by remember { mutableStateOf<Long?>(null) }
     // sosta selezionata con il tap sul marker: apre la scheda di dettaglio
     var selectedSession by remember { mutableStateOf<ParkingSession?>(null) }
     // per richiedere accesso agli alarm esatti
     var showExactAlarmPrompt by remember { mutableStateOf(false) }
+
+    // al tap su una notifica di geofence: la decisione si prende qui, leggendo lo stato
+    // attuale (activeSessions), non quello che c'era quando la notifica è partita
+    LaunchedEffect(geofenceSavedLocationId, geofenceTransition) {
+        val savedLocationId = geofenceSavedLocationId ?: return@LaunchedEffect
+        when (geofenceTransition) {
+            Geofence.GEOFENCE_TRANSITION_ENTER -> {
+                preselectedSavedLocationId = savedLocationId
+                showStartDialog = true
+            }
+            Geofence.GEOFENCE_TRANSITION_EXIT -> {
+                val matching = activeSessions.filter { it.savedLocationId == savedLocationId }
+                // solo con esattamente una sosta attiva qui l'azione è univoca: con zero o più
+                // di una si apre solo la mappa, senza scegliere per l'utente
+                if (matching.size == 1) {
+                    selectedSession = matching.single()
+                }
+            }
+        }
+        onGeofenceHandled()
+    }
 
     // basta un minuto di tolleranza per il colore dei ticket scaduti: non serve il secondo come nella scheda
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -151,7 +178,11 @@ fun MapScreen(
         }
 
         FloatingActionButton(
-            onClick = { showStartDialog = true },
+            onClick = {
+                // un avvio normale non deve riusare una preselezione lasciata da un geofence precedente
+                preselectedSavedLocationId = null
+                showStartDialog = true
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(16.dp)
@@ -166,6 +197,7 @@ fun MapScreen(
             activeVehicleIds = activeSessions.map { it.vehicleId }.toSet(),
             savedLocations = savedLocations,
             deviceLocationProvider = deviceLocationProvider,
+            initialSavedLocationId = preselectedSavedLocationId,
             onDismiss = { showStartDialog = false },
             onConfirm = { input -> start(input) }
         )

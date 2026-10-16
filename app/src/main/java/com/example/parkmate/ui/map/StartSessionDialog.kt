@@ -109,6 +109,9 @@ fun StartSessionDialog(
     activeVehicleIds: Set<Long>,
     savedLocations: List<SavedLocation>,
     deviceLocationProvider: DeviceLocationProvider,
+    // non null quando il modale si apre da una notifica di ingresso in un geofence: preseleziona
+    // quella saved location invece di partire dalla mappa
+    initialSavedLocationId: Long? = null,
     onDismiss: () -> Unit,
     onConfirm: (StartSessionInput) -> Unit
 ) {
@@ -122,12 +125,12 @@ fun StartSessionDialog(
     var expiryHourText by rememberSaveable { mutableStateOf("") }
     var expiryMinuteText by rememberSaveable { mutableStateOf("") }
     // sorgente scelta nel menu: null = mappa, altrimenti l'id della saved location
-    var sourceLocationId by rememberSaveable { mutableStateOf<Long?>(null) }
-    // marker della mini-mappa: parte da un default, non dal GPS — il GPS si legge solo al tap
+    var sourceLocationId by rememberSaveable { mutableStateOf(initialSavedLocationId) }
+    // marker della mini-mappa: parte da un default, non dal GPS. il GPS si legge solo al tap
     // esplicito su "Ricentra sul GPS", non all'apertura del modale
     var pin by rememberSaveable { mutableStateOf(DEFAULT_MAP_POSITION) }
     // modalità scelta nel primo menu: false = Mappa, true = "Saved Locations" (con il secondo menu)
-    var savedMode by rememberSaveable { mutableStateOf(false) }
+    var savedMode by rememberSaveable { mutableStateOf(initialSavedLocationId != null) }
     var gpsFetchError by remember { mutableStateOf<String?>(null) }
 
     val cameraPositionState = rememberCameraPositionState {
