@@ -27,14 +27,18 @@ class TicketAlarmScheduler(private val context: Context) {
     // programma i due avvisi: quello anticipato e quello esatto. Restituisce se quello
     // anticipato è stato effettivamente programmato (false se la finestra è già passata)
     fun schedule(sessionId: Long, vehicleName: String, expiryTime: Long): Boolean {
+        val now = System.currentTimeMillis()
         val warningMinutes = getExpiryWarningMinutes(context)
         val warningTime = expiryTime - warningMinutes * 60_000L
-        val warningScheduled = warningTime > System.currentTimeMillis()
+        val warningScheduled = warningTime > now
 
         if (warningScheduled) {
             scheduleOne(sessionId, vehicleName, warningTime, ALARM_KIND_WARNING)
         }
-        scheduleOne(sessionId, vehicleName, expiryTime, ALARM_KIND_EXACT)
+        // un orario di scadenza già passato farebbe scattare l'alarm esatto subito dopo averlo programmato
+        if (expiryTime > now) {
+            scheduleOne(sessionId, vehicleName, expiryTime, ALARM_KIND_EXACT)
+        }
         return warningScheduled
     }
 

@@ -17,15 +17,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.core.content.edit
-
-// preferenze private dell'app: ricordano, per ogni gruppo di permessi, se li abbiamo già chiesti
-private const val PREFS_NAME = "parkmate_permissions"
-
-// chiave unica per un gruppo di permessi: i nomi ordinati e uniti con "|", così l'ordine della
-// lista non cambia la chiave e ogni gruppo ha il suo stato
-private fun alreadyAskedKey(permissions: List<String>): String =
-    "already_asked:" + permissions.sorted().joinToString("|")
 
 private fun Context.findActivity(): Activity? {
     var context = this
@@ -59,24 +50,29 @@ fun PermissionRequester(
 ) {
     val context = LocalContext.current
     val activity = remember { context.findActivity() }
-    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
-    // ricalcolata solo se cambia la lista dei permessi
-    val askedKey = remember(permissions) { alreadyAskedKey(permissions) }
 
     // stato dei dialog
     var showRationale by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+
+    // true solo dopo un rifiuto non permanente: l'API non distingue "mai chiesto" da "negato per
+    // sempre" (in entrambi i casi dà false), quindi non si può usarla per decidere IN ANTICIPO se
+    // mostrare le impostazioni. Lo sappiamo per certo solo subito DOPO un tentativo rifiutato
+    fun canShowSystemDialogAgain(): Boolean =
+        activity?.let { act -> permissions.any { ActivityCompat.shouldShowRequestPermissionRationale(act, it) } } ?: true
 
     // il launcher mostra il dialog di sistema e ci restituisce l'esito quando l'utente risponde
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         onResult(results)
+        // tutto negato e il sistema non lo richiederebbe più: ora è certo, non prima
+        if (results.values.none { it } && !canShowSystemDialogAgain()) {
+            showSettings = true
+        }
     }
 
     fun launchSystemDialog() {
-        // segniamo che abbiamo chiesto, così al prossimo rifiuto permanente sappiamo distinguerlo
-        prefs.edit { putBoolean(askedKey, true) }
         launcher.launch(permissions.toTypedArray())
     }
 
@@ -85,17 +81,12 @@ fun PermissionRequester(
         val allGranted = permissions.all {
             ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
         }
-        // vero solo dopo un rifiuto non ancora permanente
-        val shouldShowRationale = activity?.let { act ->
-            permissions.any { ActivityCompat.shouldShowRequestPermissionRationale(act, it) }
-        } ?: false
-        val alreadyAsked = prefs.getBoolean(askedKey, false)
-
         when {
             allGranted -> onResult(permissions.associateWith { true })
-            shouldShowRationale -> showRationale = true
-            // già chiesto e nessuna motivazione: il sistema non mostrerà più il dialog
-            alreadyAsked -> showSettings = true
+            canShowSystemDialogAgain() -> showRationale = true
+            // non è la prima volta e il sistema potrebbe non chiedere più: proviamo comunque,
+            // è sicuro anche se è bloccato per sempre (il sistema risponde negato all'istante,
+            // senza mostrare nulla), e il launcher sopra rileva il caso davvero permanente
             else -> launchSystemDialog()
         }
     }

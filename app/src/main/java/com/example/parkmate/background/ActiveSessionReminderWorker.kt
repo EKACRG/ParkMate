@@ -43,7 +43,7 @@ class ActiveSessionReminderWorker(
         val now = System.currentTimeMillis()
         val lines = sessions.map { session ->
             val vehicleName = checkNotNull(application.vehicleRepository.getById(session.vehicleId)) {
-                "Vehicle ${session.vehicleId} must exist for an active ParkingSession (FK RESTRICT)"
+                "Il veicolo ${session.vehicleId} deve esistere per una ParkingSession attiva (FK RESTRICT)"
             }.name
             val elapsed = Duration.ofMillis((now - session.startTime).coerceAtLeast(0))
             "$vehicleName (${session.type.shortLabel()}): ${formatDuration(elapsed)}"

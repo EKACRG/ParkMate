@@ -1,13 +1,12 @@
 package com.example.parkmate.ui.map
 
+import android.Manifest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,23 +14,21 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -41,24 +38,28 @@ import androidx.compose.ui.unit.dp
 import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.SavedLocation
 import com.example.parkmate.data.local.entity.Vehicle
+import com.example.parkmate.data.location.DeviceLocationProvider
+import com.example.parkmate.ui.components.DEFAULT_MAP_POSITION
+import com.example.parkmate.ui.components.MINI_MAP_ZOOM
+import com.example.parkmate.ui.components.PermissionRequester
+import com.example.parkmate.ui.components.PositionMap
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
-import com.google.maps.android.compose.CameraPositionState
-import com.google.maps.android.compose.GoogleMap
-import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
-import com.google.maps.android.compose.rememberUpdatedMarkerState
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
 
-// altezza fissa della mini-mappa: se il contenuto supera lo schermo, il modale scorre
-private val MAP_HEIGHT = 180.dp
-private const val MAP_ZOOM = 16f
+// permessi per la posizione: stessa coppia e stesso schema di SavedLocationsScreen
+private val LOCATION_PERMISSIONS = listOf(
+    Manifest.permission.ACCESS_FINE_LOCATION,
+    Manifest.permission.ACCESS_COARSE_LOCATION
+)
 
 // dati inseriti nel modale. latitude e longitude sono il punto finale: la saved location scelta
-// oppure il marker spostato sulla mini-mappa (solo con sorgente GPS).
-// savedLocationId è l'id della saved location scelta, null per il GPS
+// oppure il marker sulla mini-mappa (solo in modalità Mappa).
+// savedLocationId è l'id della saved location scelta, null in modalità Mappa
 data class StartSessionInput(
     val vehicleId: Long,
     val type: ParkType,
@@ -96,9 +97,9 @@ private fun ParkType.shortLabel(): String = when (this) {
     ParkType.FIXED_TICKET -> "Ticket"
 }
 
-// voci del primo menu della posizione: il GPS, oppure "Saved Locations" che apre il secondo menu
+// voci del primo menu della posizione: la mappa, oppure "Saved Locations" che apre il secondo menu
 private sealed interface PositionChoice {
-    data object Gps : PositionChoice
+    data object Map : PositionChoice
     data object SavedLocations : PositionChoice
 }
 
@@ -107,13 +108,15 @@ fun StartSessionDialog(
     vehicles: List<Vehicle>,
     activeVehicleIds: Set<Long>,
     savedLocations: List<SavedLocation>,
-    gpsPosition: LatLng?,
-    gpsDenied: Boolean,
-    errorMessage: String?,
+    deviceLocationProvider: DeviceLocationProvider,
+    // non null quando il modale si apre da una notifica di ingresso in un geofence: preseleziona
+    // quella saved location invece di partire dalla mappa
+    initialSavedLocationId: Long? = null,
     onDismiss: () -> Unit,
-    onOpenSettings: () -> Unit,
     onConfirm: (StartSessionInput) -> Unit
 ) {
+    val scope = rememberCoroutineScope()
+
     // stato del form: rememberSaveable lo conserva anche alla ricostruzione dell'activity
     var vehicleId by rememberSaveable { mutableStateOf<Long?>(null) }
     var type by rememberSaveable { mutableStateOf(ParkType.FREE) }
@@ -121,35 +124,24 @@ fun StartSessionDialog(
     var fixedCostText by rememberSaveable { mutableStateOf("") }
     var expiryHourText by rememberSaveable { mutableStateOf("") }
     var expiryMinuteText by rememberSaveable { mutableStateOf("") }
-    // sorgente scelta nel menu: null = GPS, altrimenti l'id della saved location
-    var sourceLocationId by rememberSaveable { mutableStateOf<Long?>(null) }
-    // marker sulla mini-mappa, salvato come due Double perché LatLng non è salvabile con rememberSaveable
-    var pinLat by rememberSaveable { mutableStateOf<Double?>(null) }
-    var pinLng by rememberSaveable { mutableStateOf<Double?>(null) }
-    // modalità scelta nel primo menu: false = GPS (con mini-mappa), true = "Saved Locations" (con il secondo menu)
-    var savedMode by rememberSaveable { mutableStateOf(false) }
+    // sorgente scelta nel menu: null = mappa, altrimenti l'id della saved location
+    var sourceLocationId by rememberSaveable { mutableStateOf(initialSavedLocationId) }
+    // marker della mini-mappa: parte da un default, non dal GPS. il GPS si legge solo al tap
+    // esplicito su "Ricentra sul GPS", non all'apertura del modale
+    var pin by rememberSaveable { mutableStateOf(DEFAULT_MAP_POSITION) }
+    // modalità scelta nel primo menu: false = Mappa, true = "Saved Locations" (con il secondo menu)
+    var savedMode by rememberSaveable { mutableStateOf(initialSavedLocationId != null) }
+    var gpsFetchError by remember { mutableStateOf<String?>(null) }
 
-    val cameraPositionState = rememberCameraPositionState()
-
-    // saved location scelta, oppure null se la sorgente è il GPS
-    val sourceLocation = savedLocations.find { it.id == sourceLocationId }
-
-    // con sorgente GPS il marker parte dalla posizione letta all'apertura e la mappa la centra
-    LaunchedEffect(gpsPosition, savedMode) {
-        val position = gpsPosition ?: return@LaunchedEffect
-        if (!savedMode) {
-            pinLat = position.latitude
-            pinLng = position.longitude
-            cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MAP_ZOOM)
-        }
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(pin, MINI_MAP_ZOOM)
     }
 
-    val pinLatitude = pinLat
-    val pinLongitude = pinLng
-    val gpsPin: LatLng? = if (pinLatitude != null && pinLongitude != null) LatLng(pinLatitude, pinLongitude) else null
+    // saved location scelta, oppure null se la sorgente è la mappa
+    val sourceLocation = savedLocations.find { it.id == sourceLocationId }
+
     // il punto finale: coordinate del luogo salvato, oppure il marker sulla mini-mappa
-    // in modalità saved location il punto è quello del luogo scelto (null finché non si sceglie); altrimenti il marker
-    val point: LatLng? = if (savedMode) sourceLocation?.let { LatLng(it.latitude, it.longitude) } else gpsPin
+    val point: LatLng? = if (savedMode) sourceLocation?.let { LatLng(it.latitude, it.longitude) } else pin
 
     // valori derivati dal testo: ricalcolati a ogni modifica
     val hourlyRate = hourlyRateText.toPositiveNumberOrNull()
@@ -165,256 +157,214 @@ fun StartSessionDialog(
     val canConfirm = vehicleId != null && typeValid && point != null
     val hasActiveSession = vehicleId?.let { it in activeVehicleIds } ?: false
 
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Avvia sosta") },
-        text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                // messaggi in alto: compaiono solo quando servono
-                if (hasActiveSession) {
-                    Text(
-                        "Questo veicolo ha già una sosta attiva: verrà chiusa.",
-                        color = MaterialTheme.colorScheme.onTertiaryContainer,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(MaterialTheme.colorScheme.tertiaryContainer)
-                            .padding(8.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-                errorMessage?.let { message ->
-                    Text(message, color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-
-                // senza veicoli il menu non si può usare: spieghiamo cosa fare invece di mostrare un menu vuoto
-                if (vehicles.isEmpty()) {
-                    Text("Nessun veicolo disponibile. Aggiungine uno nella sezione Veicoli.")
-                    Spacer(modifier = Modifier.height(8.dp))
-                } else {
-                    DropdownField(
-                        label = "Veicolo",
-                        selectedLabel = vehicles.find { it.id == vehicleId }?.name ?: "Seleziona un veicolo",
-                        options = vehicles,
-                        optionLabel = { it.name },
-                        onSelect = { vehicleId = it.id }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    ParkType.entries.forEach { option ->
-                        TypeOption(
-                            label = option.shortLabel(),
-                            selected = type == option,
-                            onSelect = { type = option },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-
-                // i campi compaiono solo per il tipo scelto
-                when (type) {
-                    ParkType.FREE -> Unit
-                    ParkType.HOURLY_PAID -> {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = hourlyRateText,
-                            onValueChange = { hourlyRateText = it },
-                            label = { Text("Tariffa oraria (€)") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                    ParkType.FIXED_TICKET -> {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = fixedCostText,
-                            onValueChange = { fixedCostText = it },
-                            label = { Text("Costo (€)") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Scadenza", style = MaterialTheme.typography.titleSmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            // solo cifre, massimo due per campo: i due punti li aggiungiamo noi nella validazione
-                            OutlinedTextField(
-                                value = expiryHourText,
-                                onValueChange = { expiryHourText = it.filter { c -> c.isDigit() }.take(2) },
-                                label = { Text("Ore") },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f)
-                            )
-                            OutlinedTextField(
-                                value = expiryMinuteText,
-                                onValueChange = { expiryMinuteText = it.filter { c -> c.isDigit() }.take(2) },
-                                label = { Text("Minuti") },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                // primo menu: GPS, oppure "Saved Locations" (la voce compare solo se ci sono luoghi salvati)
-                val positionOptions = listOfNotNull(
-                    PositionChoice.Gps,
-                    PositionChoice.SavedLocations.takeIf { savedLocations.isNotEmpty() }
-                )
-                DropdownField(
-                    label = "Posizione",
-                    selectedLabel = if (savedMode) "Saved Locations" else "Posizione GPS attuale",
-                    options = positionOptions,
-                    optionLabel = { choice ->
-                        when (choice) {
-                            PositionChoice.Gps -> "Posizione GPS attuale"
-                            PositionChoice.SavedLocations -> "Saved Locations"
-                        }
-                    },
-                    onSelect = { choice ->
-                        when (choice) {
-                            PositionChoice.Gps -> {
-                                sourceLocationId = null
-                                savedMode = false
-                            }
-                            PositionChoice.SavedLocations -> {
-                                savedMode = true
-                            }
-                        }
-                    }
-                )
-
-                // secondo menu: i luoghi salvati, aperto dalla voce "Saved Locations"
-                if (savedMode) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    DropdownField(
-                        label = "Luoghi salvati",
-                        selectedLabel = sourceLocation?.name ?: "Seleziona un luogo",
-                        options = savedLocations,
-                        optionLabel = { it.name },
-                        onSelect = { location -> sourceLocationId = location.id }
-                    )
-                }
-
-                // la mini-mappa esiste solo con sorgente GPS: con una saved location il punto è già fissato
-                if (!savedMode) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    when {
-                        gpsDenied -> PermissionDeniedBox(onOpenSettings = onOpenSettings)
-                        gpsPin == null -> LoadingBox(loading = errorMessage == null)
-                        else -> PositionMap(
-                            pin = gpsPin,
-                            cameraPositionState = cameraPositionState,
-                            onMove = { moved ->
-                                pinLat = moved.latitude
-                                pinLng = moved.longitude
-                            },
-                            onRecenter = {
-                                gpsPosition?.let { position ->
-                                    pinLat = position.latitude
-                                    pinLng = position.longitude
-                                    cameraPositionState.position = CameraPosition.fromLatLngZoom(position, MAP_ZOOM)
-                                }
-                            }
-                        )
+    PermissionRequester(
+        permissions = LOCATION_PERMISSIONS,
+        onResult = { grants ->
+            if (grants.values.any { it }) {
+                gpsFetchError = null
+                // la posizione è una chiamata sospesa quindi la lanciamo in una coroutine
+                scope.launch {
+                    val location = deviceLocationProvider.getCurrentLocation()
+                    if (location != null) {
+                        val gps = LatLng(location.latitude, location.longitude)
+                        pin = gps
+                        cameraPositionState.position = CameraPosition.fromLatLngZoom(gps, MINI_MAP_ZOOM)
+                    } else {
+                        gpsFetchError = "Posizione GPS non disponibile. Riprova o scegli una saved location."
                     }
                 }
             }
         },
-        confirmButton = {
-            TextButton(
-                enabled = canConfirm,
-                onClick = {
-                    // il pulsante è abilitato solo con veicolo, tipo valido e punto della sosta
-                    val id = vehicleId ?: return@TextButton
-                    val target = point ?: return@TextButton
-                    onConfirm(
-                        StartSessionInput(
-                            vehicleId = id,
-                            type = type,
-                            hourlyRate = if (type == ParkType.HOURLY_PAID) hourlyRate else null,
-                            fixedCost = if (type == ParkType.FIXED_TICKET) fixedCost else null,
-                            expiryTime = if (type == ParkType.FIXED_TICKET) expiry?.let { nextExpiryMillis(it) } else null,
-                            latitude = target.latitude,
-                            longitude = target.longitude,
-                            savedLocationId = sourceLocation?.id
-                        )
+        rationaleTitle = "Serve la posizione",
+        rationaleText = "Per centrare la mappa sulla tua posizione attuale serve il permesso di posizione. " +
+            "Puoi comunque indicare il punto a mano sulla mappa.",
+        settingsTitle = "Permesso di posizione negato",
+        settingsText = "Il permesso è stato negato in modo permanente. Puoi concederlo nelle " +
+            "impostazioni dell'app, oppure indicare il punto a mano sulla mappa."
+    ) { requestLocationAccess ->
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Avvia sosta") },
+            text = {
+                // lo scroll si disattiva mentre la mappa si muove, altrimenti i due gesti si contendono il trascinamento
+                Column(
+                    modifier = Modifier.verticalScroll(
+                        rememberScrollState(),
+                        enabled = !cameraPositionState.isMoving
                     )
+                ) {
+                    // messaggi in alto: compaiono solo quando servono
+                    if (hasActiveSession) {
+                        Text(
+                            "Questo veicolo ha già una sosta attiva: verrà chiusa.",
+                            color = MaterialTheme.colorScheme.onTertiaryContainer,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.tertiaryContainer)
+                                .padding(8.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                    gpsFetchError?.let { message ->
+                        Text(message, color = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    // senza veicoli il menu non si può usare: spieghiamo cosa fare invece di mostrare un menu vuoto
+                    if (vehicles.isEmpty()) {
+                        Text("Nessun veicolo disponibile. Aggiungine uno nella sezione Veicoli.")
+                        Spacer(modifier = Modifier.height(8.dp))
+                    } else {
+                        DropdownField(
+                            label = "Veicolo",
+                            selectedLabel = vehicles.find { it.id == vehicleId }?.name ?: "Seleziona un veicolo",
+                            options = vehicles,
+                            optionLabel = { it.name },
+                            onSelect = { vehicleId = it.id }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        ParkType.entries.forEach { option ->
+                            TypeOption(
+                                label = option.shortLabel(),
+                                selected = type == option,
+                                onSelect = { type = option },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    // i campi compaiono solo per il tipo scelto
+                    when (type) {
+                        ParkType.FREE -> Unit
+                        ParkType.HOURLY_PAID -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = hourlyRateText,
+                                onValueChange = { hourlyRateText = it },
+                                label = { Text("Tariffa oraria (€)") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        ParkType.FIXED_TICKET -> {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            OutlinedTextField(
+                                value = fixedCostText,
+                                onValueChange = { fixedCostText = it },
+                                label = { Text("Costo (€)") },
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Scadenza", style = MaterialTheme.typography.titleSmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                // solo cifre, massimo due per campo: i due punti li aggiungiamo noi nella validazione
+                                OutlinedTextField(
+                                    value = expiryHourText,
+                                    onValueChange = { expiryHourText = it.filter { c -> c.isDigit() }.take(2) },
+                                    label = { Text("Ore") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = expiryMinuteText,
+                                    onValueChange = { expiryMinuteText = it.filter { c -> c.isDigit() }.take(2) },
+                                    label = { Text("Minuti") },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    // primo menu: Mappa, oppure "Saved Locations" (la voce compare solo se ci sono luoghi salvati)
+                    val positionOptions = listOfNotNull(
+                        PositionChoice.Map,
+                        PositionChoice.SavedLocations.takeIf { savedLocations.isNotEmpty() }
+                    )
+                    DropdownField(
+                        label = "Posizione",
+                        selectedLabel = if (savedMode) "Saved Locations" else "Mappa",
+                        options = positionOptions,
+                        optionLabel = { choice ->
+                            when (choice) {
+                                PositionChoice.Map -> "Mappa"
+                                PositionChoice.SavedLocations -> "Saved Locations"
+                            }
+                        },
+                        onSelect = { choice ->
+                            when (choice) {
+                                PositionChoice.Map -> {
+                                    sourceLocationId = null
+                                    savedMode = false
+                                }
+                                PositionChoice.SavedLocations -> {
+                                    savedMode = true
+                                }
+                            }
+                        }
+                    )
+
+                    // secondo menu: i luoghi salvati, aperto dalla voce "Saved Locations"
+                    if (savedMode) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        DropdownField(
+                            label = "Luoghi salvati",
+                            selectedLabel = sourceLocation?.name ?: "Seleziona un luogo",
+                            options = savedLocations,
+                            optionLabel = { it.name },
+                            onSelect = { location -> sourceLocationId = location.id }
+                        )
+                    }
+
+                    // la mini-mappa esiste solo in modalità Mappa: con una saved location il punto è già fissato.
+                    // si rende sempre, indipendentemente dal permesso: il GPS serve solo al tap su "Ricentra"
+                    if (!savedMode) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        PositionMap(
+                            pin = pin,
+                            cameraPositionState = cameraPositionState,
+                            markerTitle = "Posizione della sosta",
+                            onMove = { moved -> pin = moved },
+                            onRecenter = { requestLocationAccess() }
+                        )
+                    }
                 }
-            ) { Text("Avvia") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Annulla") }
-        }
-    )
-}
-
-// mini-mappa con zoom e pan; il tap sposta il marker; "Ricentra" è sovrapposto in basso a destra
-@Composable
-private fun PositionMap(
-    pin: LatLng,
-    cameraPositionState: CameraPositionState,
-    onMove: (LatLng) -> Unit,
-    onRecenter: () -> Unit
-) {
-    Box(modifier = Modifier
-        .fillMaxWidth()
-        .height(MAP_HEIGHT)
-    ) {
-        GoogleMap(
-            modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState,
-            onMapClick = onMove
-        ) {
-            Marker(
-                state = rememberUpdatedMarkerState(position = pin),
-                title = "Posizione della sosta"
-            )
-        }
-        FilledTonalButton(
-            onClick = onRecenter,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(8.dp)
-        ) {
-            Text("Ricentra sul GPS")
-        }
-    }
-}
-
-// in attesa della posizione GPS: uno spinner; se la lettura fallisce, il messaggio è in cima al modale
-@Composable
-private fun LoadingBox(loading: Boolean) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MAP_HEIGHT),
-        contentAlignment = Alignment.Center
-    ) {
-        if (loading) CircularProgressIndicator()
-    }
-}
-
-// permesso negato: messaggio + pulsante per andare nelle impostazioni dell'app
-@Composable
-private fun PermissionDeniedBox(onOpenSettings: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MAP_HEIGHT)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("Permesso negato, apri le impostazioni per fornire il permesso")
-        TextButton(onClick = onOpenSettings) { Text("Apri impostazioni") }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = canConfirm,
+                    onClick = {
+                        // il pulsante è abilitato solo con veicolo, tipo valido e punto della sosta
+                        val id = vehicleId ?: return@TextButton
+                        val target = point ?: return@TextButton
+                        onConfirm(
+                            StartSessionInput(
+                                vehicleId = id,
+                                type = type,
+                                hourlyRate = if (type == ParkType.HOURLY_PAID) hourlyRate else null,
+                                fixedCost = if (type == ParkType.FIXED_TICKET) fixedCost else null,
+                                expiryTime = if (type == ParkType.FIXED_TICKET) expiry?.let { nextExpiryMillis(it) } else null,
+                                latitude = target.latitude,
+                                longitude = target.longitude,
+                                savedLocationId = sourceLocation?.id
+                            )
+                        )
+                    }
+                ) { Text("Avvia") }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Annulla") }
+            }
+        )
     }
 }
 
