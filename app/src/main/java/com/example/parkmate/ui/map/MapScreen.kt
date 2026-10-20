@@ -14,8 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -65,7 +67,9 @@ fun MapScreen(
     showSavedLocations: Boolean,
     geofenceSavedLocationId: Long?,
     geofenceTransition: Int?,
-    onGeofenceHandled: () -> Unit
+    onGeofenceHandled: () -> Unit,
+    ticketSessionId: Long?,
+    onTicketSessionHandled: () -> Unit
 ) {
     val viewModel: MapViewModel = viewModel(factory = viewModelFactory)
     val activeSessions by viewModel.activeSessions.observeAsState(emptyList())
@@ -80,8 +84,12 @@ fun MapScreen(
     var showStartDialog by remember { mutableStateOf(false) }
     // saved location da preselezionare quando il modale si apre da una notifica di ingresso
     var preselectedSavedLocationId by remember { mutableStateOf<Long?>(null) }
-    // sosta selezionata con il tap sul marker: apre la scheda di dettaglio
-    var selectedSession by remember { mutableStateOf<ParkingSession?>(null) }
+    // id della sosta selezionata col tap sul marker, non l'oggetto: così il dialog si aggiorna
+    // da solo quando activeSessions cambia (nota o foto salvate, costo che sale), invece di
+    // restare fermo su uno snapshot preso al momento del tap. rememberSaveable: se l'Activity
+    // viene ricreata mentre la fotocamera è in primo piano, il dialog deve riapparire aperto
+    var selectedSessionId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val selectedSession = activeSessions.find { it.id == selectedSessionId }
     // per richiedere accesso agli alarm esatti
     var showExactAlarmPrompt by remember { mutableStateOf(false) }
 
@@ -99,15 +107,25 @@ fun MapScreen(
                 // solo con esattamente una sosta attiva qui l'azione è univoca: con zero o più
                 // di una si apre solo la mappa, senza scegliere per l'utente
                 if (matching.size == 1) {
-                    selectedSession = matching.single()
+                    selectedSessionId = matching.single().id
                 }
             }
         }
         onGeofenceHandled()
     }
 
+    // al tap su una notifica di scadenza ticket: apre la scheda di quella sosta, se è ancora
+    // attiva. Se nel frattempo è stata terminata, si apre solo la mappa
+    LaunchedEffect(ticketSessionId) {
+        val sessionId = ticketSessionId ?: return@LaunchedEffect
+        if (activeSessions.any { it.id == sessionId }) {
+            selectedSessionId = sessionId
+        }
+        onTicketSessionHandled()
+    }
+
     // basta un minuto di tolleranza per il colore dei ticket scaduti: non serve il secondo come nella scheda
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(60_000.milliseconds)
@@ -157,7 +175,7 @@ fun MapScreen(
                     // true consuma il tocco: niente centratura automatica né InfoWindow di default,
                     // apriamo la nostra scheda al suo posto
                     onClick = {
-                        selectedSession = session
+                        selectedSessionId = session.id
                         true
                     }
                 )
@@ -207,11 +225,13 @@ fun MapScreen(
         SessionDetailsDialog(
             session = session,
             vehicleName = vehicleNames[session.vehicleId] ?: "Veicolo",
-            onDismiss = { selectedSession = null },
+            onDismiss = { selectedSessionId = null },
             onEndSession = {
                 viewModel.endSession(session.id)
-                selectedSession = null
-            }
+                selectedSessionId = null
+            },
+            onSaveNote = { note -> viewModel.updateNote(session.id, note) },
+            onSavePhoto = { path -> viewModel.updatePhotoPath(session.id, path) }
         )
     }
 

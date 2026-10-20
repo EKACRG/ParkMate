@@ -11,6 +11,7 @@ import androidx.compose.runtime.setValue
 import com.example.parkmate.background.EXTRA_GEOFENCE_SAVED_LOCATION_ID
 import com.example.parkmate.background.EXTRA_GEOFENCE_TRANSITION
 import com.example.parkmate.background.EXTRA_OPEN_MAP
+import com.example.parkmate.background.EXTRA_TICKET_SESSION_ID
 import com.example.parkmate.ui.navigation.ParkMateNavHost
 import com.example.parkmate.ui.theme.ParkMateTheme
 
@@ -21,6 +22,8 @@ class MainActivity : ComponentActivity() {
     // non null quando l'istanza è stata aperta da una notifica di geofence
     private var geofenceSavedLocationId by mutableStateOf<Long?>(null)
     private var geofenceTransition by mutableStateOf<Int?>(null)
+    // non null quando l'istanza è stata aperta da una notifica di scadenza ticket
+    private var ticketSessionId by mutableStateOf<Long?>(null)
 
     // letti sia in onCreate sia in onNewIntent: stessa lettura, due punti di ingresso diversi
     private fun readIntentExtras(intent: Intent) {
@@ -29,6 +32,8 @@ class MainActivity : ComponentActivity() {
             ?.getLongExtra(EXTRA_GEOFENCE_SAVED_LOCATION_ID, -1L)
         geofenceTransition = intent.takeIf { it.hasExtra(EXTRA_GEOFENCE_TRANSITION) }
             ?.getIntExtra(EXTRA_GEOFENCE_TRANSITION, -1)
+        ticketSessionId = intent.takeIf { it.hasExtra(EXTRA_TICKET_SESSION_ID) }
+            ?.getLongExtra(EXTRA_TICKET_SESSION_ID, -1L)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,7 +63,9 @@ class MainActivity : ComponentActivity() {
                     onGeofenceHandled = {
                         geofenceSavedLocationId = null
                         geofenceTransition = null
-                    }
+                    },
+                    ticketSessionId = ticketSessionId,
+                    onTicketSessionHandled = { ticketSessionId = null }
                 )
             }
         }
