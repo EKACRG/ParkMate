@@ -81,9 +81,12 @@ fun MapScreen(
     }
 
     val context = LocalContext.current
-    var showStartDialog by remember { mutableStateOf(false) }
+    // rememberSaveable: ora che il modale ha un secondo step con la fotocamera, un'Activity
+    // ricreata mentre la fotocamera è in primo piano non deve far sparire l'intero modale,
+    // non solo la foto in corso (quella la conserva già StartSessionDialog)
+    var showStartDialog by rememberSaveable { mutableStateOf(false) }
     // saved location da preselezionare quando il modale si apre da una notifica di ingresso
-    var preselectedSavedLocationId by remember { mutableStateOf<Long?>(null) }
+    var preselectedSavedLocationId by rememberSaveable { mutableStateOf<Long?>(null) }
     // id della sosta selezionata col tap sul marker, non l'oggetto: così il dialog si aggiorna
     // da solo quando activeSessions cambia (nota o foto salvate, costo che sale), invece di
     // restare fermo su uno snapshot preso al momento del tap. rememberSaveable: se l'Activity
@@ -144,7 +147,9 @@ fun MapScreen(
             savedLocationId = input.savedLocationId,
             hourlyRate = input.hourlyRate,
             fixedCost = input.fixedCost,
-            expiryTime = input.expiryTime
+            expiryTime = input.expiryTime,
+            note = input.note,
+            photoPath = input.photoPath
         )
         showStartDialog = false
 
