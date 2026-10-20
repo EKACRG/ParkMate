@@ -34,7 +34,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.example.parkmate.data.local.entity.ParkType
@@ -206,11 +205,9 @@ fun StartSessionDialog(
             title = { Text(if (currentStep == 1) "Avvia sosta (1/2)" else "Nota e foto (2/2)") },
             text = {
                 if (currentStep == 2) {
-                    // altezza fissa: a differenza dello step 1 (dimensionato sul contenuto), qui la
-                    // foto deve riempire tutto lo spazio verticale rimasto dopo nota e bottoni, e
-                    // serve quindi un contenitore con un'altezza nota a cui applicare il weight
-                    val step2Height = LocalConfiguration.current.screenHeightDp.dp * 0.65f
-                    Column(modifier = Modifier.fillMaxWidth().height(step2Height)) {
+                    // stesso rettangolo fisso di SessionDetailsDialog: qui non c'è una mini-mappa
+                    // che consuma spazio, ma la foto non deve comunque occupare tutto il dialog
+                    Column(modifier = Modifier.fillMaxWidth()) {
                         OutlinedTextField(
                             value = noteText,
                             onValueChange = { noteText = it },
@@ -221,7 +218,7 @@ fun StartSessionDialog(
                         PhotoCaptureField(
                             photoPath = photoPath,
                             onPhotoChanged = { path -> photoPath = path },
-                            modifier = Modifier.weight(1f).fillMaxWidth()
+                            modifier = Modifier.height(200.dp)
                         )
                     }
                     return@AlertDialog
