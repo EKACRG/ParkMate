@@ -146,6 +146,15 @@ class ParkingSessionRepository(
         }
     }
 
+    // foto e nota si modificano solo a sosta attiva, dalla scheda apribile dalla mappa
+    suspend fun updateNote(sessionId: Long, note: String?) = withContext(Dispatchers.IO) {
+        parkingSessionDao.updateNote(sessionId, note)
+    }
+
+    suspend fun updatePhotoPath(sessionId: Long, photoPath: String?) = withContext(Dispatchers.IO) {
+        parkingSessionDao.updatePhotoPath(sessionId, photoPath)
+    }
+
     private fun closeSession(session: ParkingSession, endTime: Long): ParkingSession {
         val finalCost = when (session.type) {
             ParkType.FREE -> null

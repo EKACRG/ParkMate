@@ -34,4 +34,10 @@ interface ParkingSessionDao {
 
     @Query("UPDATE parking_session SET savedLocationId = NULL WHERE savedLocationId = :savedLocationId")
     suspend fun clearSavedLocationReference(savedLocationId: Long)
+
+    @Query("UPDATE parking_session SET note = :note WHERE id = :sessionId")
+    suspend fun updateNote(sessionId: Long, note: String?)
+
+    @Query("UPDATE parking_session SET photoPath = :photoPath WHERE id = :sessionId")
+    suspend fun updatePhotoPath(sessionId: Long, photoPath: String?)
 }

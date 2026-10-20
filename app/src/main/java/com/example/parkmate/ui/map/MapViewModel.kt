@@ -57,4 +57,16 @@ class MapViewModel(
             parkingSessionRepository.endSession(sessionId)
         }
     }
+
+    fun updateNote(sessionId: Long, note: String?) {
+        viewModelScope.launch {
+            parkingSessionRepository.updateNote(sessionId, note)
+        }
+    }
+
+    fun updatePhotoPath(sessionId: Long, photoPath: String?) {
+        viewModelScope.launch {
+            parkingSessionRepository.updatePhotoPath(sessionId, photoPath)
+        }
+    }
 }
