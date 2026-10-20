@@ -35,10 +35,12 @@ class MapViewModel(
         savedLocationId: Long?,
         hourlyRate: Double?,
         fixedCost: Double?,
-        expiryTime: Long?
+        expiryTime: Long?,
+        note: String? = null,
+        photoPath: String? = null
     ) {
         viewModelScope.launch {
-            parkingSessionRepository.startSession(
+            val sessionId = parkingSessionRepository.startSession(
                 vehicleId = vehicleId,
                 vehicleName = vehicleName,
                 type = type,
@@ -49,12 +51,28 @@ class MapViewModel(
                 fixedCost = fixedCost,
                 expiryTime = expiryTime
             )
+            // nota e foto sono facoltative e arrivano dallo step 2/2 del modale di avvio:
+            // la sessione esiste solo dopo startSession, quindi vanno salvate di seguito
+            if (note != null) parkingSessionRepository.updateNote(sessionId, note)
+            if (photoPath != null) parkingSessionRepository.updatePhotoPath(sessionId, photoPath)
         }
     }
 
     fun endSession(sessionId: Long) {
         viewModelScope.launch {
             parkingSessionRepository.endSession(sessionId)
+        }
+    }
+
+    fun updateNote(sessionId: Long, note: String?) {
+        viewModelScope.launch {
+            parkingSessionRepository.updateNote(sessionId, note)
+        }
+    }
+
+    fun updatePhotoPath(sessionId: Long, photoPath: String?) {
+        viewModelScope.launch {
+            parkingSessionRepository.updatePhotoPath(sessionId, photoPath)
         }
     }
 }

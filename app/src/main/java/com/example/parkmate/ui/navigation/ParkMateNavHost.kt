@@ -30,12 +30,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.example.parkmate.ParkMateViewModelFactory
 import com.example.parkmate.background.TicketAlarmScheduler
 import com.example.parkmate.data.location.DeviceLocationProvider
@@ -43,7 +41,6 @@ import com.example.parkmate.ui.components.RequestNotificationPermissionOnce
 import com.example.parkmate.ui.history.HistoryScreen
 import com.example.parkmate.ui.map.MapScreen
 import com.example.parkmate.ui.map.SavedLocationsScreen
-import com.example.parkmate.ui.session.ActiveSessionScreen
 import com.example.parkmate.ui.settings.SettingsScreen
 import com.example.parkmate.ui.stats.StatsScreen
 import com.example.parkmate.ui.vehicles.VehiclesScreen
@@ -61,11 +58,6 @@ sealed class ParkMateDestination(val route: String) {
     object SavedLocations : ParkMateDestination("saved-locations")
 
     object Settings : ParkMateDestination("settings")
-
-    object Session : ParkMateDestination("session/{sessionId}") {
-        const val ARG_SESSION_ID = "sessionId"
-        fun createRoute(sessionId: Long) = "session/$sessionId"
-    }
 }
 
 private val bottomBarDestinations = listOf(
@@ -105,10 +97,6 @@ private fun topBarConfig(
             title = "Impostazioni",
             onBack = { navController.navigateUp() }
         )
-        route == ParkMateDestination.Session.route -> TopBarConfig(
-            title = "Sessione attiva",
-            onBack = { navController.navigateUp() }
-        )
         else -> TopBarConfig(title = "")
     }
 }
@@ -123,7 +111,9 @@ fun ParkMateNavHost(
     onOpenMapHandled: () -> Unit,
     geofenceSavedLocationId: Long?,
     geofenceTransition: Int?,
-    onGeofenceHandled: () -> Unit
+    onGeofenceHandled: () -> Unit,
+    ticketSessionId: Long?,
+    onTicketSessionHandled: () -> Unit
 ) {
     // crea il controller di navigazione
     val navController = rememberNavController()
@@ -225,7 +215,9 @@ fun ParkMateNavHost(
                     showSavedLocations = showSavedLocations,
                     geofenceSavedLocationId = geofenceSavedLocationId,
                     geofenceTransition = geofenceTransition,
-                    onGeofenceHandled = onGeofenceHandled
+                    onGeofenceHandled = onGeofenceHandled,
+                    ticketSessionId = ticketSessionId,
+                    onTicketSessionHandled = onTicketSessionHandled
                 )
             }
             composable(ParkMateDestination.TopLevel.Vehicles.route) {
@@ -241,17 +233,6 @@ fun ParkMateNavHost(
             }
             composable(ParkMateDestination.Settings.route) {
                 SettingsScreen(viewModelFactory = viewModelFactory)
-            }
-            composable(
-                route = ParkMateDestination.Session.route,
-                arguments = listOf(
-                    navArgument(ParkMateDestination.Session.ARG_SESSION_ID) { type = NavType.LongType }
-                )
-            ) { backStackEntry ->
-                val sessionId = checkNotNull(backStackEntry.arguments) {
-                    "Rotta session/{sessionId} raggiunta senza argomenti"
-                }.getLong(ParkMateDestination.Session.ARG_SESSION_ID)
-                ActiveSessionScreen(sessionId = sessionId)
             }
         }
     }

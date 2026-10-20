@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -42,7 +43,9 @@ import com.example.parkmate.data.location.DeviceLocationProvider
 import com.example.parkmate.ui.components.DEFAULT_MAP_POSITION
 import com.example.parkmate.ui.components.MINI_MAP_ZOOM
 import com.example.parkmate.ui.components.PermissionRequester
+import com.example.parkmate.ui.components.PhotoCaptureField
 import com.example.parkmate.ui.components.PositionMap
+import com.example.parkmate.util.deletePhotoFile
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.rememberCameraPositionState
@@ -68,7 +71,10 @@ data class StartSessionInput(
     val expiryTime: Long?,
     val latitude: Double,
     val longitude: Double,
-    val savedLocationId: Long?
+    val savedLocationId: Long?,
+    // opzionali: lo step 2/2 del modale può essere saltato, si può aggiungerle anche dopo
+    val note: String? = null,
+    val photoPath: String? = null
 )
 
 // ore e minuti come testo: null se uno dei due non è un numero nell'intervallo giusto
@@ -117,6 +123,11 @@ fun StartSessionDialog(
 ) {
     val scope = rememberCoroutineScope()
 
+    // 1 = dati della sosta (invariato), 2 = nota e foto, entrambi facoltativi
+    var currentStep by rememberSaveable { mutableIntStateOf(1) }
+    var noteText by rememberSaveable { mutableStateOf("") }
+    var photoPath by rememberSaveable { mutableStateOf<String?>(null) }
+
     // stato del form: rememberSaveable lo conserva anche alla ricostruzione dell'activity
     var vehicleId by rememberSaveable { mutableStateOf<Long?>(null) }
     var type by rememberSaveable { mutableStateOf(ParkType.FREE) }
@@ -157,6 +168,13 @@ fun StartSessionDialog(
     val canConfirm = vehicleId != null && typeValid && point != null
     val hasActiveSession = vehicleId?.let { it in activeVehicleIds } ?: false
 
+    // annulla l'intero modale: una foto scattata allo step 2 e non ancora legata a una sessione
+    // è un file orfano se non si procede, va cancellato qui e non lasciato sul disco
+    fun cancelAndCleanup() {
+        deletePhotoFile(photoPath)
+        onDismiss()
+    }
+
     PermissionRequester(
         permissions = LOCATION_PERMISSIONS,
         onResult = { grants ->
@@ -183,9 +201,29 @@ fun StartSessionDialog(
             "impostazioni dell'app, oppure indicare il punto a mano sulla mappa."
     ) { requestLocationAccess ->
         AlertDialog(
-            onDismissRequest = onDismiss,
-            title = { Text("Avvia sosta") },
+            onDismissRequest = { cancelAndCleanup() },
+            title = { Text(if (currentStep == 1) "Avvia sosta (1/2)" else "Nota e foto (2/2)") },
             text = {
+                if (currentStep == 2) {
+                    // stesso rettangolo fisso di SessionDetailsDialog: qui non c'è una mini-mappa
+                    // che consuma spazio, ma la foto non deve comunque occupare tutto il dialog
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = noteText,
+                            onValueChange = { noteText = it },
+                            label = { Text("Nota") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        PhotoCaptureField(
+                            photoPath = photoPath,
+                            onPhotoChanged = { path -> photoPath = path },
+                            modifier = Modifier.height(200.dp)
+                        )
+                    }
+                    return@AlertDialog
+                }
+
                 // lo scroll si disattiva mentre la mappa si muove, altrimenti i due gesti si contendono il trascinamento
                 Column(
                     modifier = Modifier.verticalScroll(
@@ -340,10 +378,11 @@ fun StartSessionDialog(
                 }
             },
             confirmButton = {
-                TextButton(
-                    enabled = canConfirm,
-                    onClick = {
-                        // il pulsante è abilitato solo con veicolo, tipo valido e punto della sosta
+                if (currentStep == 1) {
+                    TextButton(enabled = canConfirm, onClick = { currentStep = 2 }) { Text("Avanti") }
+                } else {
+                    TextButton(onClick = {
+                        // il pulsante dello step 1 è abilitato solo con veicolo, tipo valido e punto della sosta
                         val id = vehicleId ?: return@TextButton
                         val target = point ?: return@TextButton
                         onConfirm(
@@ -355,14 +394,20 @@ fun StartSessionDialog(
                                 expiryTime = if (type == ParkType.FIXED_TICKET) expiry?.let { nextExpiryMillis(it) } else null,
                                 latitude = target.latitude,
                                 longitude = target.longitude,
-                                savedLocationId = sourceLocation?.id
+                                savedLocationId = sourceLocation?.id,
+                                note = noteText.ifBlank { null },
+                                photoPath = photoPath
                             )
                         )
-                    }
-                ) { Text("Avvia") }
+                    }) { Text("Avvia sosta") }
+                }
             },
             dismissButton = {
-                TextButton(onClick = onDismiss) { Text("Annulla") }
+                if (currentStep == 1) {
+                    TextButton(onClick = { cancelAndCleanup() }) { Text("Annulla") }
+                } else {
+                    TextButton(onClick = { currentStep = 1 }) { Text("Indietro") }
+                }
             }
         )
     }

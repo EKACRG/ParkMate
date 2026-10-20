@@ -1,5 +1,6 @@
 package com.example.parkmate.background
 
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -7,6 +8,10 @@ import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import com.example.parkmate.MainActivity
+
+// extra letto da MainActivity al tap sulla notifica
+const val EXTRA_TICKET_SESSION_ID = "ticket_session_id"
 
 /**
  * Riceve i due avvisi di scadenza programmati da TicketAlarmScheduler e posta la notifica
@@ -25,10 +30,22 @@ class TicketAlarmReceiver : BroadcastReceiver() {
 
         if (!granted) return
 
+        // il tap apre la Mappa con la scheda di questa sosta già aperta, se ancora attiva
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            sessionId.toInt(),
+            Intent(context, MainActivity::class.java).apply {
+                putExtra(EXTRA_OPEN_MAP, true)
+                putExtra(EXTRA_TICKET_SESSION_ID, sessionId)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_EXPIRY)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setContentTitle(if (isExact) "Ticket scaduto" else "Il ticket sta per scadere")
             .setContentText(vehicleName)
+            .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .build()
 
