@@ -10,10 +10,11 @@ import java.io.File
 private const val FILE_PROVIDER_AUTHORITY_SUFFIX = ".fileprovider"
 
 // crea (e se serve crea la cartella di) un nuovo file vuoto in filesDir/photos/, pronto per
-// essere passato alla fotocamera come destinazione dello scatto
-fun createPhotoFile(context: Context, sessionId: Long): File {
+// essere passato alla fotocamera come destinazione dello scatto. Nominato solo con il timestamp:
+// può essere scattata prima che la sessione esista ancora (allo step 2 dell'avvio sosta)
+fun createPhotoFile(context: Context): File {
     val dir = File(context.filesDir, "photos").apply { mkdirs() }
-    return File(dir, "session_${sessionId}_${System.currentTimeMillis()}.jpg")
+    return File(dir, "photo_${System.currentTimeMillis()}.jpg")
 }
 
 // URI content:// che la fotocamera di sistema può scrivere senza accesso diretto al file
