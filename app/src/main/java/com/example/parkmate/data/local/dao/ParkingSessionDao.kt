@@ -18,6 +18,10 @@ interface ParkingSessionDao {
     @Query("SELECT * FROM parking_session WHERE endTime IS NULL")
     fun getActiveSessions(): LiveData<List<ParkingSession>>
 
+    // storico: le più recenti prima, il filtro per data/veicolo/tipo si fa in memoria
+    @Query("SELECT * FROM parking_session WHERE endTime IS NOT NULL ORDER BY startTime DESC")
+    fun getClosedSessions(): LiveData<List<ParkingSession>>
+
     // lettura singola, non osservabile: per il Worker, che non può osservare un LiveData
     @Query("SELECT * FROM parking_session WHERE endTime IS NULL")
     suspend fun getActiveSessionsOnce(): List<ParkingSession>

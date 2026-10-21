@@ -18,6 +18,9 @@ class ParkingSessionRepository(
 ) {
     val activeSessions: LiveData<List<ParkingSession>> = parkingSessionDao.getActiveSessions()
 
+    // per lo storico
+    val closedSessions: LiveData<List<ParkingSession>> = parkingSessionDao.getClosedSessions()
+
     // per il Worker del riepilogo periodico, non per la UI
     suspend fun getActiveSessionsSnapshot(): List<ParkingSession> = withContext(Dispatchers.IO) {
         parkingSessionDao.getActiveSessionsOnce()
