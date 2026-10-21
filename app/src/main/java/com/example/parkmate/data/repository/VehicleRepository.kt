@@ -16,6 +16,9 @@ class VehicleRepository(
 
     val activeVehicles: LiveData<List<Vehicle>> = vehicleDao.getActiveVehicles()
 
+    // per lo storico: anche i veicoli archiviati devono restare risolvibili
+    val allVehicles: LiveData<List<Vehicle>> = vehicleDao.getAllVehicles()
+
     // per il Worker del riepilogo periodico: nome del veicolo di una sessione attiva
     suspend fun getById(vehicleId: Long): Vehicle? = withContext(Dispatchers.IO) {
         vehicleDao.getById(vehicleId)

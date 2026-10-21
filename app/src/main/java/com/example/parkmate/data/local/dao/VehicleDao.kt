@@ -18,6 +18,10 @@ interface VehicleDao {
     @Query("SELECT * FROM vehicle WHERE isArchived = 0 ORDER BY name")
     fun getActiveVehicles(): LiveData<List<Vehicle>>
 
+    // anche gli archiviati: serve allo storico per risolvere nome e tipo delle soste passate
+    @Query("SELECT * FROM vehicle ORDER BY name")
+    fun getAllVehicles(): LiveData<List<Vehicle>>
+
     @Query("SELECT * FROM vehicle WHERE id = :id")
     suspend fun getById(id: Long): Vehicle?
 
