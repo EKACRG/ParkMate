@@ -226,7 +226,9 @@ fun ParkMateNavHost(
             composable(ParkMateDestination.TopLevel.History.route) {
                 HistoryScreen(viewModelFactory = viewModelFactory)
             }
-            composable(ParkMateDestination.TopLevel.Stats.route) { StatsScreen() }
+            composable(ParkMateDestination.TopLevel.Stats.route) {
+                StatsScreen(viewModelFactory = viewModelFactory)
+            }
             composable(ParkMateDestination.SavedLocations.route) {
                 SavedLocationsScreen(
                     viewModelFactory = viewModelFactory,

@@ -72,6 +72,9 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.play.services.location)
     implementation(libs.maps.compose)
+    implementation(libs.maps.utils.heatmaps) {
+        exclude(group = "com.google.maps.android", module = "android-maps-utils-core")
+    }
     implementation(libs.androidx.work.runtime.ktx)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

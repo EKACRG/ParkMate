@@ -11,6 +11,7 @@ import com.example.parkmate.ui.history.HistoryViewModel
 import com.example.parkmate.ui.map.MapViewModel
 import com.example.parkmate.ui.map.SavedLocationsViewModel
 import com.example.parkmate.ui.settings.SettingsViewModel
+import com.example.parkmate.ui.stats.StatsViewModel
 import com.example.parkmate.ui.vehicles.VehiclesViewModel
 
 class ParkMateViewModelFactory(
@@ -32,6 +33,8 @@ class ParkMateViewModelFactory(
                 MapViewModel(vehicleRepository, savedLocationRepository, parkingSessionRepository) as T
             modelClass.isAssignableFrom(HistoryViewModel::class.java) ->
                 HistoryViewModel(vehicleRepository, savedLocationRepository, parkingSessionRepository) as T
+            modelClass.isAssignableFrom(StatsViewModel::class.java) ->
+                StatsViewModel(parkingSessionRepository) as T
             modelClass.isAssignableFrom(SettingsViewModel::class.java) ->
                 SettingsViewModel(
                     parkingSessionRepository,
