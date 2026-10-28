@@ -181,6 +181,10 @@ fun ParkMateNavHost(
                     NavigationBarItem(
                         selected = currentRoute == destination.route,
                         onClick = {
+                            // scarta le schermate di dettaglio sopra la tab corrente, senza salvarne lo stato
+                            while (bottomBarDestinations.none { it.route == navController.currentDestination?.route }) {
+                                navController.popBackStack()
+                            }
                             navController.navigate(destination.route) {
                                 popUpTo(navController.graph.findStartDestination().id) { // svuota il back stack fino alla destinazione iniziale, così non si accumulano schermate a ogni tocco della barra
                                     saveState = true
