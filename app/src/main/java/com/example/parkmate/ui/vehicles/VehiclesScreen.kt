@@ -50,6 +50,11 @@ private const val MAX_LICENSE_PLATE_LENGTH = 14
 fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
     val viewModel: VehiclesViewModel = viewModel(factory = viewModelFactory) // istanza del ViewModel
     val vehicles by viewModel.activeVehicles.observeAsState(emptyList()) // ponte tra LiveData e Compose -> innesca la ricomposizione se un dato cambia
+    val activeSessions by viewModel.activeSessions.observeAsState(emptyList())
+    // join in memoria, stesso pattern di MapScreen/HistoryScreen: nessuna relation Room
+    val vehicleIdsWithActiveSession = remember(activeSessions) {
+        activeSessions.map { it.vehicleId }.toSet()
+    }
 
     // variabili di stato locali della schermata
     var vehicleBeingEdited by remember { mutableStateOf<Vehicle?>(null) }
@@ -113,9 +118,13 @@ fun VehiclesScreen(viewModelFactory: ParkMateViewModelFactory) {
     }
 
     vehicleToArchive?.let { vehicle ->
+        var text = "\"${vehicle.name}\" sparirà dalla gestione veicoli, ma resterà visibile nello storico."
+        if (vehicle.id in vehicleIdsWithActiveSession) {
+            text += " Ha una sosta attiva: verrà terminata automaticamente insieme all'archiviazione."
+        }
         ConfirmDialog(
             title= "Archiviare veicolo?",
-            text = "\"${vehicle.name}\" sparirà dalla gestione veicoli, ma resterà visibile nello storico.",
+            text = text,
             confirmLabel = "Archivia",
             onConfirm = {
                 viewModel.archiveVehicle(vehicle)
