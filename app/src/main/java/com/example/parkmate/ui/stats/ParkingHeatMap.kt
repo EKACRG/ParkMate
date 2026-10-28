@@ -9,6 +9,7 @@ import com.example.parkmate.ui.components.EmptyState
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.TileOverlay
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.heatmaps.HeatmapTileProvider
@@ -31,7 +32,13 @@ fun ParkingHeatMap(sessions: List<ParkingSession>) {
         position = CameraPosition.fromLatLngZoom(points.first(), 13f)
     }
 
-    GoogleMap(modifier = Modifier.fillMaxSize(), cameraPositionState = cameraPositionState) {
+    val mapUiSettings = remember { MapUiSettings(zoomControlsEnabled = false) }
+
+    GoogleMap(
+        modifier = Modifier.fillMaxSize(),
+        cameraPositionState = cameraPositionState,
+        uiSettings = mapUiSettings
+    ) {
         TileOverlay(tileProvider = heatmapProvider)
     }
 }

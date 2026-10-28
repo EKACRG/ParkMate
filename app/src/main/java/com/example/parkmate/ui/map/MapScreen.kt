@@ -36,6 +36,7 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.google.maps.android.compose.rememberUpdatedMarkerState
@@ -159,10 +160,14 @@ fun MapScreen(
         }
     }
 
+    // i controlli +/- di default coprirebbero il FAB in basso a destra; lo zoom con le dita resta
+    val mapUiSettings = remember { MapUiSettings(zoomControlsEnabled = false) }
+
     Box(modifier = Modifier.fillMaxSize()) {
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
-            cameraPositionState = cameraPositionState
+            cameraPositionState = cameraPositionState,
+            uiSettings = mapUiSettings
         ) {
             // un marker per ogni sosta attiva
             activeSessions.forEach { session ->

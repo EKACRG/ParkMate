@@ -5,15 +5,19 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MyLocation
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.maps.model.LatLng
 import com.google.maps.android.compose.CameraPositionState
 import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Marker
 import com.google.maps.android.compose.rememberUpdatedMarkerState
 
@@ -34,6 +38,8 @@ fun PositionMap(
     onMove: (LatLng) -> Unit,
     onRecenter: () -> Unit
 ) {
+    val mapUiSettings = remember { MapUiSettings(zoomControlsEnabled = false) }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -42,6 +48,7 @@ fun PositionMap(
         GoogleMap(
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
+            uiSettings = mapUiSettings,
             onMapClick = onMove
         ) {
             Marker(
@@ -49,13 +56,13 @@ fun PositionMap(
                 title = markerTitle
             )
         }
-        FilledTonalButton(
+        FilledTonalIconButton(
             onClick = onRecenter,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
         ) {
-            Text("Ricentra sul GPS")
+            Icon(Icons.Default.MyLocation, contentDescription = "Ricentra sul GPS")
         }
     }
 }
