@@ -2,14 +2,11 @@ package com.example.parkmate.ui.stats
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -21,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.parkmate.ParkMateViewModelFactory
+import com.example.parkmate.ui.components.DropdownField
 
 private enum class StatsView(val label: String) {
     HEAT_MAP("Heat map"),
@@ -42,27 +40,21 @@ fun StatsScreen(viewModelFactory: ParkMateViewModelFactory) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            StatsPeriod.entries.forEach { period ->
-                FilterChip(
-                    selected = selectedPeriod == period,
-                    onClick = { selectedPeriod = period },
-                    label = { Text(period.label) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        DropdownField(
+            label = "Periodo",
+            selectedLabel = selectedPeriod.label,
+            options = StatsPeriod.entries,
+            optionLabel = { it.label },
+            onSelect = { selectedPeriod = it }
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Row(modifier = Modifier.fillMaxWidth()) {
-            StatsView.entries.forEach { view ->
-                FilterChip(
-                    selected = selectedView == view,
-                    onClick = { selectedView = view },
-                    label = { Text(view.label) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
+        DropdownField(
+            label = "Visualizzazione",
+            selectedLabel = selectedView.label,
+            options = StatsView.entries,
+            optionLabel = { it.label },
+            onSelect = { selectedView = it }
+        )
         Spacer(modifier = Modifier.height(12.dp))
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
