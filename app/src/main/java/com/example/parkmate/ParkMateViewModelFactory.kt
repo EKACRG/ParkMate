@@ -26,7 +26,7 @@ class ParkMateViewModelFactory(
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         return when {
             modelClass.isAssignableFrom(VehiclesViewModel::class.java) ->
-                VehiclesViewModel(vehicleRepository) as T
+                VehiclesViewModel(vehicleRepository, parkingSessionRepository) as T
             modelClass.isAssignableFrom(SavedLocationsViewModel::class.java) ->
                 SavedLocationsViewModel(savedLocationRepository) as T
             modelClass.isAssignableFrom(MapViewModel::class.java) ->
