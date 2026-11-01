@@ -85,7 +85,8 @@ fun SettingsScreen(viewModelFactory: ParkMateViewModelFactory) {
         )
         Button(
             onClick = { expiryMinutesValue?.let(viewModel::saveExpiryWarningMinutes) },
-            enabled = expiryMinutesValue != null
+            // disabilitato quando il campo è invalido o coincide col valore già salvato
+            enabled = expiryMinutesValue != null && expiryMinutesValue != expiryWarningMinutes
         ) { Text("Salva") }
         // il salvataggio può lasciare senza avviso anticipato dei ticket già in corso: lo
         // segnaliamo invece di far sembrare che la notifica arrivi comunque
@@ -116,7 +117,8 @@ fun SettingsScreen(viewModelFactory: ParkMateViewModelFactory) {
         }
         Button(
             onClick = { reminderMinutesValue?.let(viewModel::saveReminderIntervalMinutes) },
-            enabled = reminderValid
+            // disabilitato quando il campo è invalido o coincide col valore già salvato
+            enabled = reminderValid && reminderMinutesValue != reminderIntervalMinutes
         ) { Text("Salva") }
     }
 }
