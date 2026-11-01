@@ -23,6 +23,7 @@ import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.ParkingSession
 import com.example.parkmate.data.local.entity.hourlyCostAt
 import com.example.parkmate.ui.components.PhotoCaptureField
+import com.example.parkmate.ui.components.label
 import com.example.parkmate.util.formatDuration
 import kotlinx.coroutines.delay
 import java.time.Duration
@@ -32,12 +33,6 @@ import java.time.format.DateTimeFormatter
 import kotlin.time.Duration.Companion.milliseconds
 
 private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-
-private fun ParkType.displayLabel(): String = when (this) {
-    ParkType.FREE -> "Libera"
-    ParkType.HOURLY_PAID -> "Tariffa oraria"
-    ParkType.FIXED_TICKET -> "Biglietto fisso"
-}
 
 private fun formatTime(epochMillis: Long): String = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(TIME_FORMAT)
 
@@ -102,7 +97,7 @@ fun SessionDetailsDialog(
         title = { Text(vehicleName) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text("Tipo: ${session.type.displayLabel()}")
+                Text("Tipo: ${session.type.label()}")
                 Text("Inizio: ${formatTime(session.startTime)}")
 
                 when (session.type) {

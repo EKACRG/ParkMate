@@ -11,7 +11,7 @@ import android.content.Context
 import androidx.work.WorkerParameters
 import com.example.parkmate.MainActivity
 import com.example.parkmate.ParkMateApplication
-import com.example.parkmate.data.local.entity.ParkType
+import com.example.parkmate.ui.components.label
 import com.example.parkmate.util.formatDuration
 import java.time.Duration
 
@@ -46,7 +46,7 @@ class ActiveSessionReminderWorker(
                 "Il veicolo ${session.vehicleId} deve esistere per una ParkingSession attiva (FK RESTRICT)"
             }.name
             val elapsed = Duration.ofMillis((now - session.startTime).coerceAtLeast(0))
-            "$vehicleName (${session.type.shortLabel()}): ${formatDuration(elapsed)}"
+            "$vehicleName (${session.type.label().lowercase()}): ${formatDuration(elapsed)}"
         }
 
         // il tap riapre solo l'app: un riepilogo con più soste non ha un'unica sessione su cui puntare
@@ -71,10 +71,4 @@ class ActiveSessionReminderWorker(
         NotificationManagerCompat.from(applicationContext).notify(REMINDER_NOTIFICATION_ID, notification)
         return Result.success()
     }
-}
-
-private fun ParkType.shortLabel(): String = when (this) {
-    ParkType.FREE -> "libera"
-    ParkType.HOURLY_PAID -> "oraria"
-    ParkType.FIXED_TICKET -> "ticket"
 }
