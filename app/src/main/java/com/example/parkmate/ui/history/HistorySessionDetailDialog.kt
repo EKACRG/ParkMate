@@ -11,10 +11,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.ParkingSession
 import com.example.parkmate.data.local.entity.SavedLocation
 import com.example.parkmate.ui.components.PhotoThumbnail
+import com.example.parkmate.ui.components.label
 import com.example.parkmate.util.formatDuration
 import java.time.Duration
 import java.time.Instant
@@ -27,12 +27,6 @@ private val DATE_TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("d
 // diversi: serve anche la data, non solo l'ora
 fun formatSessionDateTime(epochMillis: Long): String =
     Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).format(DATE_TIME_FORMAT)
-
-fun ParkType.historyLabel(): String = when (this) {
-    ParkType.FREE -> "Libera"
-    ParkType.HOURLY_PAID -> "Tariffa oraria"
-    ParkType.FIXED_TICKET -> "Biglietto fisso"
-}
 
 // il nome della saved location se esiste ancora, altrimenti le coordinate: savedLocationId può
 // essere null sia perché la sosta era da GPS, sia perché la saved location è stata eliminata nel
@@ -56,7 +50,7 @@ fun HistorySessionDetailDialog(
         title = { Text(vehicleName) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                Text("Tipo: ${session.type.historyLabel()}")
+                Text("Tipo: ${session.type.label()}")
                 Text("Inizio: ${formatSessionDateTime(session.startTime)}")
                 session.endTime?.let { end ->
                     Text("Fine: ${formatSessionDateTime(end)}")

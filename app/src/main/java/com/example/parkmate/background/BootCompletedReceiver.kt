@@ -3,10 +3,14 @@ package com.example.parkmate.background
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import com.example.parkmate.ParkMateApplication
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+
+private const val TAG = "BootCompletedReceiver"
 
 // statico, non registrato a runtime: deve arrivare anche con l'app non in esecuzione, per far
 // ripartire il processo dopo il riavvio e rifare il lavoro che gli alarm e i geofence perdono
@@ -27,6 +31,10 @@ class BootCompletedReceiver : BroadcastReceiver() {
                         "Il veicolo $vehicleId deve esistere per una ParkingSession attiva (FK RESTRICT)"
                     }.name
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Errore durante la ri-registrazione dopo il riavvio", e)
             } finally {
                 pendingResult.finish()
             }

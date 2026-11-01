@@ -14,6 +14,7 @@ import com.example.parkmate.ParkMateApplication
 import com.example.parkmate.data.local.entity.SavedLocation
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,6 +49,10 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
                 savedLocationIds.forEach { savedLocationId ->
                     handleTransition(application, savedLocationId, transition)
                 }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "Errore durante la gestione del geofence", e)
             } finally {
                 pendingResult.finish()
             }

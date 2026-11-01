@@ -129,15 +129,15 @@ class ParkingSessionRepository(
     // chiamato da VehicleRepository quando un veicolo viene archiviato: se ha una sessione
     // attiva va chiusa, non lasciata orfana di un veicolo sparito dalla gestione
     suspend fun endActiveSessionForVehicle(vehicleId: Long) = withContext(Dispatchers.IO) {
-        val sessionsId = database.withTransaction {
+        val sessionId = database.withTransaction {
             val session = parkingSessionDao.getActiveSessionForVehicle(vehicleId)
             if (session != null) {
                 parkingSessionDao.update(closeSession(session, endTime = System.currentTimeMillis()))
             }
             session?.id
         }
-        if (sessionsId != null) {
-            ticketAlarmScheduler.cancel(sessionsId)
+        if (sessionId != null) {
+            ticketAlarmScheduler.cancel(sessionId)
         }
     }
 

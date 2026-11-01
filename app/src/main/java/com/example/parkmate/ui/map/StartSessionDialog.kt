@@ -41,6 +41,7 @@ import com.example.parkmate.ui.components.MINI_MAP_ZOOM
 import com.example.parkmate.ui.components.PermissionRequester
 import com.example.parkmate.ui.components.PhotoCaptureField
 import com.example.parkmate.ui.components.PositionMap
+import com.example.parkmate.ui.components.label
 import com.example.parkmate.util.deletePhotoFile
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.LatLng
@@ -91,13 +92,6 @@ fun nextExpiryMillis(time: LocalTime, now: LocalDateTime = LocalDateTime.now()):
 // accetta anche la virgola decimale, usata in Italia; zero e negativi non sono validi
 private fun String.toPositiveNumberOrNull(): Double? =
     replace(',', '.').toDoubleOrNull()?.takeIf { it > 0 }
-
-// etichette corte, perché le tre opzioni stanno affiancate su una riga di telefono
-private fun ParkType.shortLabel(): String = when (this) {
-    ParkType.FREE -> "Libera"
-    ParkType.HOURLY_PAID -> "Oraria"
-    ParkType.FIXED_TICKET -> "Ticket"
-}
 
 // voci del primo menu della posizione: la mappa, oppure "Saved Locations" che apre il secondo menu
 private sealed interface PositionChoice {
@@ -213,7 +207,7 @@ fun StartSessionDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                         PhotoCaptureField(
                             photoPath = photoPath,
-                            onPhotoChanged = { path -> photoPath = path },
+                            onPhotoChanged = { path -> photoPath = path; true },
                             modifier = Modifier.height(200.dp)
                         )
                     }
@@ -262,7 +256,7 @@ fun StartSessionDialog(
                     Row(modifier = Modifier.fillMaxWidth()) {
                         ParkType.entries.forEach { option ->
                             TypeOption(
-                                label = option.shortLabel(),
+                                label = option.label(),
                                 selected = type == option,
                                 onSelect = { type = option },
                                 modifier = Modifier.weight(1f)

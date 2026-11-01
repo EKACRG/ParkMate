@@ -11,6 +11,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -19,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.parkmate.util.createPhotoFile
 import com.example.parkmate.util.deletePhotoFile
 import com.example.parkmate.util.photoUriFor
+import kotlinx.coroutines.launch
 
 // scatto/riscatto della foto di una sosta, condiviso tra il dialog di avvio (foto non ancora
 // legata a nessuna sessione) e la scheda della sosta attiva (foto già salvata nel database).
@@ -27,13 +29,15 @@ import com.example.parkmate.util.photoUriFor
 @Composable
 fun PhotoCaptureField(
     photoPath: String?,
-    onPhotoChanged: (String) -> Unit,
+    // suspend e con esito: aspettato prima di cancellare il file precedente, cancellato solo se true
+    onPhotoChanged: suspend (String) -> Boolean,
     modifier: Modifier = Modifier,
     // eseguito appena prima di aprire la fotocamera: usato da SessionDetailsDialog per salvare
     // la nota prima di lasciare l'app, non serve a chi non ha nulla da salvare in anticipo
     onBeforeLaunch: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     // percorso del file che la fotocamera sta scrivendo: rememberSaveable, non remember, perché
     // deve sopravvivere se l'Activity viene ricreata mentre l'app fotocamera è in primo piano
@@ -48,8 +52,12 @@ fun PhotoCaptureField(
 
         if (success) {
             val previousPath = photoPath
-            onPhotoChanged(path)
-            if (previousPath != null && previousPath != path) deletePhotoFile(previousPath)
+            // aspetta che il nuovo path sia salvato prima di cancellare il vecchio file: se il
+            // salvataggio fallisce, la foto precedente deve restare sul disco
+            scope.launch {
+                val saved = onPhotoChanged(path)
+                if (saved && previousPath != null && previousPath != path) deletePhotoFile(previousPath)
+            }
         } else {
             deletePhotoFile(path)
         }

@@ -42,6 +42,7 @@ import com.example.parkmate.data.local.entity.Vehicle
 import com.example.parkmate.data.local.entity.VehicleType
 import com.example.parkmate.ui.components.ConfirmDialog
 import com.example.parkmate.ui.components.EmptyState
+import com.example.parkmate.ui.components.label
 
 private const val MIN_LICENSE_PLATE_LENGTH = 1
 private const val MAX_LICENSE_PLATE_LENGTH = 14
@@ -152,7 +153,7 @@ private fun VehicleRow(vehicle: Vehicle, onEdit: () -> Unit, onArchive: () -> Un
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(vehicle.name, style = MaterialTheme.typography.titleMedium)
-                Text(vehicle.type.displayLabel(), style = MaterialTheme.typography.bodyMedium)
+                Text(vehicle.type.label(), style = MaterialTheme.typography.bodyMedium)
             }
             IconButton(onClick = onArchive) {
                 Icon(Icons.Default.Delete, contentDescription = "Archivia veicolo")
@@ -204,7 +205,7 @@ private fun VehicleFormDialog(
                             .clickable { type = option } // rende cliccabile tutta la riga
                     ) {
                         RadioButton(selected = type == option, onClick = { type = option })
-                        Text(option.displayLabel())
+                        Text(option.label())
                     }
                 }
                 if (requiresLicensePlate) {
@@ -236,11 +237,5 @@ private fun VehicleFormDialog(
     )
 }
 
-private fun VehicleType.displayLabel(): String = when (this) {
-    VehicleType.CAR -> "Auto"
-    VehicleType.MOTORCYCLE -> "Moto"
-    VehicleType.BICYCLE -> "Bicicletta"
-}
-
-private fun isValidLicensePlate(lPlate: String): Boolean =
-    lPlate.length in MIN_LICENSE_PLATE_LENGTH..MAX_LICENSE_PLATE_LENGTH && lPlate.all { it.isDigit() || it in 'A'..'Z' }
+private fun isValidLicensePlate(licensePlate: String): Boolean =
+    licensePlate.length in MIN_LICENSE_PLATE_LENGTH..MAX_LICENSE_PLATE_LENGTH && licensePlate.all { it.isDigit() || it in 'A'..'Z' }

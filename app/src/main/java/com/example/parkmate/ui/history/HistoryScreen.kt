@@ -40,6 +40,7 @@ import com.example.parkmate.data.local.entity.ParkType
 import com.example.parkmate.data.local.entity.ParkingSession
 import com.example.parkmate.data.local.entity.VehicleType
 import com.example.parkmate.ui.components.DropdownField
+import com.example.parkmate.ui.components.label
 import com.example.parkmate.util.formatDuration
 import java.time.Duration
 import java.time.Instant
@@ -48,12 +49,6 @@ import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 private val FILTER_DATE_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
-
-private fun VehicleType.historyLabel(): String = when (this) {
-    VehicleType.CAR -> "Auto"
-    VehicleType.MOTORCYCLE -> "Moto"
-    VehicleType.BICYCLE -> "Bicicletta"
-}
 
 // il giorno di INIZIO della sosta decide sotto quale data compare, anche se finisce il giorno
 // dopo. selectedDateMillis arriva dal DatePicker di Material3 ed è la mezzanotte UTC del giorno
@@ -99,17 +94,17 @@ fun HistoryScreen(viewModelFactory: ParkMateViewModelFactory) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         DropdownField(
             label = "Tipo di veicolo",
-            selectedLabel = selectedVehicleType?.historyLabel() ?: "Tutti",
+            selectedLabel = selectedVehicleType?.label() ?: "Tutti",
             options = listOf(null) + VehicleType.entries,
-            optionLabel = { it?.historyLabel() ?: "Tutti" },
+            optionLabel = { it?.label() ?: "Tutti" },
             onSelect = { selectedVehicleType = it }
         )
         Spacer(modifier = Modifier.height(8.dp))
         DropdownField(
             label = "Tipo di sosta",
-            selectedLabel = selectedParkType?.historyLabel() ?: "Tutti",
+            selectedLabel = selectedParkType?.label() ?: "Tutti",
             options = listOf(null) + ParkType.entries,
-            optionLabel = { it?.historyLabel() ?: "Tutti" },
+            optionLabel = { it?.label() ?: "Tutti" },
             onSelect = { selectedParkType = it }
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -182,7 +177,7 @@ private fun HistoryEntryCard(session: ParkingSession, vehicleName: String, onCli
     Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(vehicleName, style = MaterialTheme.typography.titleMedium)
-            Text("${session.type.historyLabel()} · ${formatSessionDateTime(session.startTime)}")
+            Text("${session.type.label()} · ${formatSessionDateTime(session.startTime)}")
             session.endTime?.let { end ->
                 Text("Durata: ${formatDuration(Duration.ofMillis(end - session.startTime))}")
             }
