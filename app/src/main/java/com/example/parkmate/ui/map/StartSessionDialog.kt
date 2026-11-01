@@ -213,7 +213,7 @@ fun StartSessionDialog(
                         Spacer(modifier = Modifier.height(8.dp))
                         PhotoCaptureField(
                             photoPath = photoPath,
-                            onPhotoChanged = { path -> photoPath = path },
+                            onPhotoChanged = { path -> photoPath = path; true },
                             modifier = Modifier.height(200.dp)
                         )
                     }

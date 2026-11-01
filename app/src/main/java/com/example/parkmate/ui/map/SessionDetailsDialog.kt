@@ -59,7 +59,8 @@ fun SessionDetailsDialog(
     onDismiss: () -> Unit,
     onEndSession: () -> Unit,
     onSaveNote: (String) -> Unit,
-    onSavePhoto: (String) -> Unit
+    // suspend: PhotoCaptureField aspetta l'esito prima di cancellare la foto precedente
+    onSavePhoto: suspend (String) -> Boolean
 ) {
     var now by remember(session.id) { mutableLongStateOf(System.currentTimeMillis()) }
 

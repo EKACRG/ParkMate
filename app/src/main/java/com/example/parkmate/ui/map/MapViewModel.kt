@@ -10,6 +10,7 @@ import com.example.parkmate.data.local.entity.Vehicle
 import com.example.parkmate.data.repository.ParkingSessionRepository
 import com.example.parkmate.data.repository.SavedLocationRepository
 import com.example.parkmate.data.repository.VehicleRepository
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 class MapViewModel(
@@ -70,9 +71,16 @@ class MapViewModel(
         }
     }
 
-    fun updatePhotoPath(sessionId: Long, photoPath: String?) {
-        viewModelScope.launch {
+    // suspend, non fire-and-forget: PhotoCaptureField deve sapere se il salvataggio è andato a
+    // buon fine prima di cancellare il file della foto precedente
+    suspend fun updatePhotoPath(sessionId: Long, photoPath: String?): Boolean {
+        return try {
             parkingSessionRepository.updatePhotoPath(sessionId, photoPath)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            false
         }
     }
 }
