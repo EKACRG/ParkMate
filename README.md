@@ -1,81 +1,58 @@
 # ParkMate
 
-ParkMate is a native Android app for tracking where you parked, how long you've been there, and
-what it's costing you. It runs fully offline: every vehicle, parking session, and saved location
-lives in a local database on the device, with no account and no backend.
-
-## Features
-
-- **Vehicles** — full CRUD for cars, motorcycles, and bicycles. Deleting a vehicle archives it
-  instead of erasing it: it disappears from pickers and management, but its past sessions stay
-  resolvable from the history.
-- **Parking sessions**, three types:
-  - **Free** — just vehicle, position, and start time.
-  - **Hourly paid** — an hourly rate, with elapsed time and accumulated cost shown live while the
-    session is active.
-  - **Fixed ticket** — a fixed cost and an expiry time, with a countdown and expiry notifications.
-
-  Starting a new session for a vehicle that already has one active closes the previous one
-  automatically. Each session can carry a free-text note and a photo taken with the device camera.
-- **Position picking** — GPS (auto-filled when permission is already granted, otherwise a manual
-  tap on the map), a saved location, or manual adjustment on an embedded mini-map — always
-  available as a fallback or a correction.
-- **Main map** — shows a marker for every currently parked vehicle (never one for the user's own
-  position); it frames itself automatically around whatever is visible, tapping a marker opens
-  live session details. Saved locations are a separate, togglable layer.
-- **Saved locations** — full CRUD for named, fixed positions, optionally paired with a geofence:
-  entering or leaving the area triggers a notification offering to start or end a session there.
-- **History** — a filterable chronological list of past sessions (by vehicle type, session type,
-  and start date, combinable), with a read-only detail view that reconstructs the full event.
-- **Statistics** — two interactive, fully on-device visualizations: a geographic heat map of past
-  sessions and a bar chart of cost per day, both filterable by period.
-- **Notifications** — a configurable warning before a ticket's expiry plus a mandatory one exactly
-  at expiry, periodic reminders while a session is active, and geofence enter/exit prompts.
+ParkMate is a native Android app for managing where you park. Register your vehicles, start
+and end parking sessions, and get notified when a ticket is about to expire. Every session
+records where and when you parked, so you can always find your vehicle again. All data is
+stored locally on the device.
 
 ## Screenshots
 
 | Map | Vehicles | History | Statistics |
-|---|---|---|---|
-| ![Map](docs/screenshots/mappa.png) | ![Vehicles](docs/screenshots/veicoli.png) | ![History](docs/screenshots/storico.png) | ![Statistics](docs/screenshots/statistiche.png) |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/screenshots/mappa.png" width="200"> | <img src="docs/screenshots/veicoli.png" width="200"> | <img src="docs/screenshots/storico.png" width="200"> | <img src="docs/screenshots/statistiche.png" width="200"> |
+
+## Features
+
+- **Vehicles**: add, edit and delete cars, motorcycles and bicycles. A deleted vehicle is
+  archived, so its past sessions remain in the history.
+- **Parking sessions**, three types:
+  - *Free*: vehicle, position and start time.
+  - *Hourly*: an hourly rate, with elapsed time and cost updated live.
+  - *Fixed ticket*: a fixed cost and an expiry time, with a countdown.
+
+  Starting a new session for a vehicle closes its previous one automatically. Each session
+  can have a note and a photo.
+- **Position**: taken from GPS or from a saved location, and adjustable on a mini-map.
+- **Map**: a marker for every parked vehicle, framed automatically. Tap a marker to see the
+  session details. Saved locations can be shown as a separate layer.
+- **Saved locations**: named places, each with an optional geofence that suggests starting
+  or ending a session when you arrive or leave.
+- **History**: past sessions, filterable by vehicle type, session type and date.
+- **Statistics**: a heat map of where you park and a chart of daily costs, over the last 7
+  days, 30 days or all time.
+- **Notifications**: a configurable warning before a ticket expires, an alert at the exact
+  moment of expiry, and periodic reminders while a session is active.
 
 ## Tech stack
 
-- **Kotlin** + **Jetpack Compose** with Material 3
-- **MVVM**: Compose UI → ViewModel → Repository → Room DAO, with `LiveData` as the observable
-  type, consumed via `observeAsState()`
-- **Room** for local persistence
-- **Maps SDK for Android** via `maps-compose`, with **`android-maps-utils-heatmaps`** for the
-  geographic heat map
-- **FusedLocationProviderClient** and the **Geofencing API** (`play-services-location`)
-- **AlarmManager** (`setExactAndAllowWhileIdle()`) for the exact ticket-expiry alarm
-- **WorkManager** (`PeriodicWorkRequest`) for the active-session reminder
-- **BroadcastReceiver** for geofence, alarm, and boot-completed events
-- **NotificationManagerCompat** with dedicated notification channels
-- Camera capture via the implicit `ACTION_IMAGE_CAPTURE` intent and a `FileProvider`
-- **Navigation Compose** for navigation
-- **Canvas** (Compose) for the cost chart
-
-## Architecture
-
-The codebase is layered (`data/`, `ui/`, `background/`), with `ui/` further split by feature
-(map, vehicles, history, stats, settings). Each ViewModel receives its Repository through the
-constructor, built once in `ParkMateApplication` and handed out through a hand-written
-`ViewModelProvider.Factory`. Repositories are the single source of truth for domain rules — for
-example, closing a vehicle's previous active session when a new one starts is enforced there,
-inside a Room `@Transaction`, not in the UI layer or the database schema.
+- **Language**: Kotlin, with coroutines
+- **UI**: Jetpack Compose, Material 3
+- **Architecture**: MVVM with LiveData, manual dependency injection
+- **Persistence**: Room
+- **Navigation**: Navigation Compose
+- **Maps**: Google Maps SDK (maps-compose), android-maps-utils heatmaps
+- **Location**: Play Services Location, Geofencing API
+- **Background work**: AlarmManager, WorkManager
+- **Charts**: custom drawing with Compose Canvas, no chart library
+- **Build**: Gradle Kotlin DSL with version catalog, KSP
 
 ## Getting started
 
 1. Clone the repository and open it in Android Studio.
-2. Get a Google Maps API key with the **Maps SDK for Android** enabled, and add it to
-   `local.properties` (not committed) in the project root:
+2. Get a Google Maps API key with the Maps SDK for Android enabled and add it to
+   `local.properties` in the project root (this file is not committed):
    ```
    MAPS_API_KEY=your_key_here
    ```
-3. Let Gradle sync, then run the app on a device or emulator with Google Play services
-   (required for location and geofencing), API level 26 or higher.
-
-## Requirements
-
-- `minSdk` 26, `targetSdk` 37
-- Google Play services on the target device/emulator
+3. Let Gradle sync, then run the app on a device or emulator with Google Play services,
+   running Android 8.0 or later.
