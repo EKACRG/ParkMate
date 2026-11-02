@@ -1,35 +1,36 @@
 # ParkMate
 
-ParkMate is a native Android app for tracking where you parked, how long you've been there, and
-what it's costing you. It runs fully offline: every vehicle, parking session, and saved location
-lives in a local database on the device, with no account and no backend.
+ParkMate is a native Android app for managing where you park. Register your vehicles (cars,
+motorcycles, bicycles), start and end a parking session for each one, and get notified about
+tickets expiring or sessions still active. Every session keeps a record of where and when you
+parked, so you can always find your vehicle again.
 
 ## Features
 
-- **Vehicles** — full CRUD for cars, motorcycles, and bicycles. Deleting a vehicle archives it
-  instead of erasing it: it disappears from pickers and management, but its past sessions stay
+- **Vehicles**: full CRUD for cars, motorcycles, and bicycles. Deleting a vehicle archives it
+  instead of erasing it, so it disappears from pickers and management but its past sessions stay
   resolvable from the history.
 - **Parking sessions**, three types:
-  - **Free** — just vehicle, position, and start time.
-  - **Hourly paid** — an hourly rate, with elapsed time and accumulated cost shown live while the
+  - **Free**: just vehicle, position, and start time.
+  - **Hourly paid**: an hourly rate, with elapsed time and accumulated cost shown live while the
     session is active.
-  - **Fixed ticket** — a fixed cost and an expiry time, with a countdown and expiry notifications.
+  - **Fixed ticket**: a fixed cost and an expiry time, with a countdown and expiry notifications.
 
   Starting a new session for a vehicle that already has one active closes the previous one
   automatically. Each session can carry a free-text note and a photo taken with the device camera.
-- **Position picking** — GPS (auto-filled when permission is already granted, otherwise a manual
-  tap on the map), a saved location, or manual adjustment on an embedded mini-map — always
+- **Position picking**: GPS (auto-filled when permission is already granted, otherwise a manual
+  tap on the map), a saved location, or manual adjustment on an embedded mini-map, always
   available as a fallback or a correction.
-- **Main map** — shows a marker for every currently parked vehicle (never one for the user's own
-  position); it frames itself automatically around whatever is visible, tapping a marker opens
-  live session details. Saved locations are a separate, togglable layer.
-- **Saved locations** — full CRUD for named, fixed positions, optionally paired with a geofence:
-  entering or leaving the area triggers a notification offering to start or end a session there.
-- **History** — a filterable chronological list of past sessions (by vehicle type, session type,
+- **Main map**: shows a marker for every currently parked vehicle (never one for the user's own
+  position). It frames itself automatically around whatever is visible, and tapping a marker
+  opens live session details. Saved locations are a separate, togglable layer.
+- **Saved locations**: full CRUD for named, fixed positions, optionally paired with a geofence.
+  Entering or leaving the area triggers a notification offering to start or end a session there.
+- **History**: a filterable chronological list of past sessions (by vehicle type, session type,
   and start date, combinable), with a read-only detail view that reconstructs the full event.
-- **Statistics** — two interactive, fully on-device visualizations: a geographic heat map of past
+- **Statistics**: two interactive, fully on-device visualizations, a geographic heat map of past
   sessions and a bar chart of cost per day, both filterable by period.
-- **Notifications** — a configurable warning before a ticket's expiry plus a mandatory one exactly
+- **Notifications**: a configurable warning before a ticket's expiry plus a mandatory one exactly
   at expiry, periodic reminders while a session is active, and geofence enter/exit prompts.
 
 ## Screenshots
@@ -60,7 +61,7 @@ lives in a local database on the device, with no account and no backend.
 The codebase is layered (`data/`, `ui/`, `background/`), with `ui/` further split by feature
 (map, vehicles, history, stats, settings). Each ViewModel receives its Repository through the
 constructor, built once in `ParkMateApplication` and handed out through a hand-written
-`ViewModelProvider.Factory`. Repositories are the single source of truth for domain rules — for
+`ViewModelProvider.Factory`. Repositories are the single source of truth for domain rules. For
 example, closing a vehicle's previous active session when a new one starts is enforced there,
 inside a Room `@Transaction`, not in the UI layer or the database schema.
 
