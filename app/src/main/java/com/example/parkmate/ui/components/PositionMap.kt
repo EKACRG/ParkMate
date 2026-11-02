@@ -28,15 +28,15 @@ val MINI_MAP_HEIGHT = 180.dp
 const val MINI_MAP_ZOOM = 16f
 
 // mini-mappa con zoom e pan, condivisa tra il modale di avvio sosta e il form delle saved
-// location. onRecenter è sempre presente: al tap, chi la usa chiede il permesso di posizione
-// se serve e poi centra lì — la mappa stessa non sa nulla di permessi
+// location. onRecenter null nasconde il pulsante: usato da chi non ha più modo di richiedere
+// il permesso da qui (il permesso si chiede altrove) e quindi non avrebbe nulla da far fare al tap
 @Composable
 fun PositionMap(
     pin: LatLng,
     cameraPositionState: CameraPositionState,
     markerTitle: String,
     onMove: (LatLng) -> Unit,
-    onRecenter: () -> Unit
+    onRecenter: (() -> Unit)?
 ) {
     val mapUiSettings = remember { MapUiSettings(zoomControlsEnabled = false) }
 
@@ -56,13 +56,15 @@ fun PositionMap(
                 title = markerTitle
             )
         }
-        FilledTonalIconButton(
-            onClick = onRecenter,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(8.dp)
-        ) {
-            Icon(Icons.Default.MyLocation, contentDescription = "Ricentra sul GPS")
+        if (onRecenter != null) {
+            FilledTonalIconButton(
+                onClick = onRecenter,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(8.dp)
+            ) {
+                Icon(Icons.Default.MyLocation, contentDescription = "Ricentra sul GPS")
+            }
         }
     }
 }

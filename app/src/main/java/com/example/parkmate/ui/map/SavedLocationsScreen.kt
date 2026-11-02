@@ -29,6 +29,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -196,18 +197,34 @@ private fun SavedLocationFormDialog(
     val scope = rememberCoroutineScope()
 
     var name by rememberSaveable(initialLocation?.id) { mutableStateOf(initialLocation?.name ?: "") }
-    // parte dalle coordinate salvate in modifica, da un default in creazione — il GPS si legge
-    // solo al tap esplicito su "Ricentra sul GPS", non all'apertura del form
+    // in modifica parte dalle coordinate già salvate, mai sovrascritte dal GPS. In creazione
+    // parte da un default, poi il LaunchedEffect sotto lo sposta su una lettura GPS fresca se il
+    // permesso è già concesso; pinSetByUser evita che quella lettura sovrascriva un tocco manuale
     var pin by rememberSaveable(initialLocation?.id) {
         mutableStateOf(initialLocation?.let { LatLng(it.latitude, it.longitude) } ?: DEFAULT_MAP_POSITION)
     }
+    var pinSetByUser by rememberSaveable(initialLocation?.id) { mutableStateOf(initialLocation != null) }
     var geofenceEnabled by rememberSaveable(initialLocation?.id) {
         mutableStateOf(initialLocation?.geofenceRadiusMeters != null)
     }
     var gpsFetchError by remember { mutableStateOf<String?>(null) }
 
+    val hasPermission = remember { deviceLocationProvider.hasLocationPermission() }
+
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(pin, MINI_MAP_ZOOM)
+    }
+
+    // solo in creazione: in modifica le coordinate salvate non vanno mai scavalcate dal GPS
+    LaunchedEffect(Unit) {
+        if (initialLocation == null && hasPermission) {
+            val location = deviceLocationProvider.getCurrentLocation()
+            if (location != null && !pinSetByUser) {
+                val gps = LatLng(location.latitude, location.longitude)
+                pin = gps
+                cameraPositionState.position = CameraPosition.fromLatLngZoom(gps, MINI_MAP_ZOOM)
+            }
+        }
     }
 
     PermissionRequester(
@@ -220,6 +237,7 @@ private fun SavedLocationFormDialog(
                     if (location != null) {
                         val gps = LatLng(location.latitude, location.longitude)
                         pin = gps
+                        pinSetByUser = true
                         cameraPositionState.position = CameraPosition.fromLatLngZoom(gps, MINI_MAP_ZOOM)
                     } else {
                         gpsFetchError = "Posizione GPS non disponibile."
@@ -255,7 +273,7 @@ private fun SavedLocationFormDialog(
                             pin = pin,
                             cameraPositionState = cameraPositionState,
                             markerTitle = "Posizione del luogo",
-                            onMove = { moved -> pin = moved },
+                            onMove = { moved -> pin = moved; pinSetByUser = true },
                             onRecenter = { requestLocationAccess() }
                         )
                         Spacer(modifier = Modifier.height(8.dp))
