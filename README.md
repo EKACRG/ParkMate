@@ -35,13 +35,16 @@ stored locally on the device.
 
 ## Tech stack
 
-- Kotlin, Jetpack Compose, Material 3
-- MVVM with LiveData
-- Room
-- Navigation Compose
-- Google Maps (maps-compose) with android-maps-utils heatmaps
-- Play Services Location and Geofencing API
-- AlarmManager and WorkManager
+- **Language**: Kotlin, with coroutines
+- **UI**: Jetpack Compose, Material 3
+- **Architecture**: MVVM with LiveData, manual dependency injection
+- **Persistence**: Room
+- **Navigation**: Navigation Compose
+- **Maps**: Google Maps SDK (maps-compose), android-maps-utils heatmaps
+- **Location**: Play Services Location, Geofencing API
+- **Background work**: AlarmManager, WorkManager
+- **Charts**: custom drawing with Compose Canvas, no chart library
+- **Build**: Gradle Kotlin DSL with version catalog, KSP
 
 ## Getting started
 
