@@ -11,7 +11,7 @@ stored locally on the device.
 
 | Map | Vehicles | History | Statistics |
 |:---:|:---:|:---:|:---:|
-| <img src="docs/screenshots/mappa.png" width="200"> | <img src="docs/screenshots/veicoli.png" width="200"> | <img src="docs/screenshots/storico.png" width="200"> | <img src="docs/screenshots/statistiche.png" width="200"> |
+| <img src="docs/screenshots/map.jpg" width="200"> | <img src="docs/screenshots/vehicles.jpg" width="200"> | <img src="docs/screenshots/history.jpg" width="200"> | <img src="docs/screenshots/stats_heatmap.jpg" width="200"> |
 
 ## Features
 
