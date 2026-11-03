@@ -11,6 +11,7 @@ import android.content.Context
 import androidx.work.WorkerParameters
 import com.example.parkmate.MainActivity
 import com.example.parkmate.ParkMateApplication
+import com.example.parkmate.R
 import com.example.parkmate.ui.components.label
 import com.example.parkmate.util.formatDuration
 import java.time.Duration
@@ -60,7 +61,7 @@ class ActiveSessionReminderWorker(
         lines.forEach { style.addLine(it) }
 
         val notification = NotificationCompat.Builder(applicationContext, NOTIFICATION_CHANNEL_REMINDERS)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_parkmate)
             .setContentTitle("Soste in corso")
             .setContentText(lines.first())
             .setStyle(style)

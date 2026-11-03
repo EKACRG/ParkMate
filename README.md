@@ -1,5 +1,7 @@
 # ParkMate
 
+<p align="center"><img src="docs/parkmate_logo_512.png" width="128" alt="Logo ParkMate"></p>
+
 ParkMate is a native Android app for managing where you park. Register your vehicles, start
 and end parking sessions, and get notified when a ticket is about to expire. Every session
 records where and when you parked, so you can always find your vehicle again. All data is
@@ -9,7 +11,7 @@ stored locally on the device.
 
 | Map | Vehicles | History | Statistics |
 |:---:|:---:|:---:|:---:|
-| <img src="docs/screenshots/mappa.png" width="200"> | <img src="docs/screenshots/veicoli.png" width="200"> | <img src="docs/screenshots/storico.png" width="200"> | <img src="docs/screenshots/statistiche.png" width="200"> |
+| <img src="docs/screenshots/map.jpg" width="200"> | <img src="docs/screenshots/vehicles.jpg" width="200"> | <img src="docs/screenshots/history.jpg" width="200"> | <img src="docs/screenshots/stats_heatmap.jpg" width="200"> |
 
 ## Features
 

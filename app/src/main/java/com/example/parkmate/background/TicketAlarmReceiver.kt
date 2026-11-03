@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.parkmate.MainActivity
+import com.example.parkmate.R
 
 // extra letto da MainActivity al tap sulla notifica
 const val EXTRA_TICKET_SESSION_ID = "ticket_session_id"
@@ -42,7 +43,7 @@ class TicketAlarmReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(context, NOTIFICATION_CHANNEL_EXPIRY)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_parkmate)
             .setContentTitle(if (isExact) "Ticket scaduto" else "Il ticket sta per scadere")
             .setContentText(vehicleName)
             .setContentIntent(contentIntent)
