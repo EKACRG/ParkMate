@@ -11,6 +11,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.example.parkmate.MainActivity
 import com.example.parkmate.ParkMateApplication
+import com.example.parkmate.R
 import com.example.parkmate.data.local.entity.SavedLocation
 import com.google.android.gms.location.Geofence
 import com.google.android.gms.location.GeofencingEvent
@@ -113,7 +114,7 @@ class GeofenceBroadcastReceiver : BroadcastReceiver() {
         )
 
         val notification = NotificationCompat.Builder(application, NOTIFICATION_CHANNEL_GEOFENCE)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_stat_parkmate)
             .setContentTitle("ParkMate")
             .setContentText(text)
             .setContentIntent(contentIntent)
