@@ -7,7 +7,7 @@ and end parking sessions, and get notified when a ticket is about to expire. Eve
 records where and when you parked, so you can always find your vehicle again. All data is
 stored locally on the device.
 
-📄 [Full report](docs/ELKIHAL.pdf)
+📄 [Full report](docs/parkamate_report.pdf)
 
 ## Screenshots
 
